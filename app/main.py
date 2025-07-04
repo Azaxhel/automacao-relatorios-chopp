@@ -102,13 +102,18 @@ def get_report_data(inicio: date, fim: date):
     if not vendas:
         return None
 
-    receita_bruta = sum(v.total for v in vendas)
-    gasto_func = sum(v.custo_func for v in vendas)
-    gasto_copos = sum(v.custo_copos for v in vendas)
-    gasto_boleto = sum(v.custo_boleto for v in vendas)
+    # Garante que todos os valores são float, tratando None como 0.0
+    receita_bruta = sum(float(v.total or 0.0) for v in vendas)
+    gasto_func = sum(float(v.custo_func or 0.0) for v in vendas)
+    gasto_copos = sum(float(v.custo_copos or 0.0) for v in vendas)
+    gasto_boleto = sum(float(v.custo_boleto or 0.0) for v in vendas)
+    
     gasto_total = gasto_func + gasto_copos + gasto_boleto
     receita_liquida = receita_bruta - gasto_total
-    media_vendas = receita_bruta / len(vendas)
+    
+    media_vendas = 0.0
+    if len(vendas) > 0:
+        media_vendas = receita_bruta / len(vendas)
 
     return {
         "receita_bruta": round(receita_bruta, 2),
@@ -202,7 +207,8 @@ async def whatsapp_webhook(request: Request, body: str = Form(..., alias="Body")
             report = get_report_data(inicio_atual, fim_atual)
 
             if not report:
-                raise HTTPException(status_code=404, detail=f"Nenhum registro para {mes}/{ano}")
+                resp.message(f"Nenhum registro de vendas encontrado para {mes}/{ano}.")
+                return Response(content=str(resp), media_type="application/xml")
 
             # Lógica para tendência
             mes_anterior = mes - 1 if mes > 1 else 12
