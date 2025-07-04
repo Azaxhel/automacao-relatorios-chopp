@@ -11,12 +11,12 @@ def clean_master(output_path="master.csv"):
         sheet_name=None
     )
 
-     # DEBUG: mostre quais abas vieram e seus tamanhos
+     # DEBUG: mostra quais abas vieram e seus tamanhos
     print("Abas lidas do Sheets:", list(all_sheets.keys()))
     for aba, df in all_sheets.items():
         print(f" - {aba!r}: {df.shape[0]} linhas, {df.shape[1]} colunas")
 
-# 3) Filtra só as abas que interessam (ex.: 'registros_abril', 'registros_maio', etc)
+# Filtra só as abas que interessam 
     dfs = []
     for aba, df in all_sheets.items():
         if not aba.lower().startswith("registros_"):
@@ -31,7 +31,7 @@ def clean_master(output_path="master.csv"):
                 .str.replace(r"\s+", "_", regex=True) 
     )
             
-    # renomear as colunas necessarias
+    # renomeia as colunas necessarias
         df = df.rename(columns={
         "vendas_total_feira": "total",
         "cartao_feira": "cartao",
@@ -51,26 +51,26 @@ def clean_master(output_path="master.csv"):
     master = pd.concat(dfs, ignore_index=True)
     print("Concatenei:", master.shape[0], "linhas de", len(dfs), "abas.")
 
-    # Trate a data de forma genérica
+    # Trata a data de forma genérica
     master["data"] = pd.to_datetime(master["data"], dayfirst=True, errors="coerce")
     
     # Se necessário, descarta linhas sem data válida
     master = master.dropna(subset=["data"])
 
-     # --- Tratamento de numéricos ---
+     # Tratamento de numéricos 
     campos_num = [
         "total", "cartao", "dinheiro", "pix", "lucro",
         "custo_func", "custo_copos", "custo_boleto"
     ]
 
     def parse_num(s):
-        # 1) se for NaN do pandas, já zera
+        # se for NaN do pandas, já zera
         if pd.isna(s):
             return 0.0
-        # 2) se for int ou float _não_ NaN, retorna direto
+        # se for int ou float _não_ NaN, retorna direto
         if isinstance(s, (int, float)):
             return float(s)
-        # 3) senão, é string: remove milhar e ajusta vírgula
+        # senão, é string: remove milhar e ajusta vírgula
         s = str(s).strip().replace(".", "").replace(",", ".")
         try:
             return float(s)
