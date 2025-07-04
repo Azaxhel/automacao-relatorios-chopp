@@ -151,6 +151,10 @@ async def whatsapp_webhook(request: Request, body: str = Form(..., alias="Body")
     url = str(request.url)
     form_params = await request.form()
     
+    # DEBUG: Loga a URL e os parâmetros recebidos
+    print(f"DEBUG: Webhook URL recebida: {url}")
+    print(f"DEBUG: Webhook Form Params recebidos: {form_params}")
+
     # Converte os ImmutableMultiDict para um dicionário simples
     form_params_dict = {key: value for key, value in form_params.items()}
 
