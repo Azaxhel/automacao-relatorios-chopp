@@ -171,9 +171,25 @@ async def whatsapp_webhook(request: Request, body: str = Form(..., alias="Body")
 
     text = body.strip().lower().replace('relatório', 'relatorio')
     parts = text.split()
-    command = " ".join(parts[:2]) if len(parts) > 1 else parts[0] if parts else ""
     
     resp = MessagingResponse()
+
+    # Lógica de reconhecimento de comandos
+    if not parts:
+        resp.message("Comando não reconhecido. Digite `ajuda` para ver as opções.")
+        return Response(content=str(resp), media_type="application/xml")
+
+    # Tenta comandos de duas palavras primeiro
+    if len(parts) >= 2:
+        command_two_words = " ".join(parts[:2])
+        if command_two_words == "relatorio anual":
+            command = command_two_words
+        elif command_two_words == "melhores dias":
+            command = command_two_words
+        else:
+            command = parts[0] # Se não for comando de duas palavras, pega a primeira palavra
+    else:
+        command = parts[0] # Se for apenas uma palavra, pega ela mesma
 
     if command == "relatorio":
         try:
