@@ -148,7 +148,11 @@ async def whatsapp_webhook(request: Request, body: str = Form(..., alias="Body")
     # O Twilio envia o URL completo da requisição no cabeçalho 'X-Twilio-Signature'
     # e os parâmetros do formulário no corpo da requisição.
     # Precisamos reconstruir o URL e os parâmetros para validar.
-    url = str(request.url)
+    # O Railway usa X-Forwarded-Proto para indicar o protocolo original (https)
+    # e X-Forwarded-Host para o host original.
+    original_protocol = request.headers.get("X-Forwarded-Proto", "http")
+    original_host = request.headers.get("X-Forwarded-Host", request.url.netloc)
+    url = f"{original_protocol}://{original_host}{request.url.path}"
     form_params = await request.form()
     
     # DEBUG: Loga a URL e os parâmetros recebidos
