@@ -1,6 +1,8 @@
 import os
+import secrets
 from dotenv import load_dotenv
-from fastapi import FastAPI, HTTPException, Query, Request, Form
+from fastapi import FastAPI, HTTPException, Query, Request, Form, Depends
+from fastapi.security import HTTPBasic, HTTPBasicCredentials
 from fastapi.responses import Response, HTMLResponse
 from sqlmodel import Session, select
 from datetime import date
@@ -11,20 +13,43 @@ from twilio.request_validator import RequestValidator
 # Carrega as variáveis de ambiente do arquivo .env
 load_dotenv()
 
+# DEBUG: Confirma se as variáveis de ambiente do formulário foram carregadas
+print(f"--> Usuário do .env: {os.getenv('FORM_USER')}")
+print(f"--> Senha do .env: {os.getenv('FORM_PASSWORD')}")
+
 app = FastAPI(title="API Trailer de Chopp")
+
+# --- Configuração de Segurança ---
 
 # Obtém o Auth Token do Twilio das variáveis de ambiente
 TWILIO_AUTH_TOKEN = os.getenv("TWILIO_AUTH_TOKEN")
-
-# Inicializa o validador de requisições do Twilio
 validator = RequestValidator(TWILIO_AUTH_TOKEN)
+
+# Credenciais para o formulário web
+security = HTTPBasic()
+FORM_USER = os.getenv("FORM_USER")
+FORM_PASSWORD = os.getenv("FORM_PASSWORD")
+
+def get_current_username(credentials: HTTPBasicCredentials = Depends(security)) -> str:
+    """
+    Valida as credenciais do usuário para o formulário.
+    """
+    correct_user = secrets.compare_digest(credentials.username, FORM_USER)
+    correct_pass = secrets.compare_digest(credentials.password, FORM_PASSWORD)
+    if not (correct_user and correct_pass):
+        raise HTTPException(
+            status_code=401,
+            detail="Usuário ou senha incorretos",
+            headers={"WWW-Authenticate": "Basic"},
+        )
+    return credentials.username
 
 # --- Endpoints do Formulário Web ---
 
 @app.get("/", response_class=HTMLResponse)
-async def get_registration_form():
+async def get_registration_form(username: str = Depends(get_current_username)):
     """
-    Serve a página HTML com o formulário de registro.
+    Serve a página HTML com o formulário de registro (protegido por senha).
     """
     try:
         with open("app/templates/index.html", "r", encoding="utf-8") as f:
@@ -42,9 +67,10 @@ async def register_venda(
     custo_func: float = Form(...),
     custo_copos: float = Form(...),
     custo_boleto: float = Form(...),
+    username: str = Depends(get_current_username) # Protege o endpoint
 ):
     """
-    Recebe os dados do formulário e salva no banco de dados.
+    Recebe os dados do formulário e salva no banco de dados (protegido por senha).
     """
     nova_venda = Venda(
         data=data,
