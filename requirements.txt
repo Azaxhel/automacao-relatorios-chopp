@@ -5,3 +5,4 @@ pandas
 python-dotenv
 twilio
 psycopg2-binary
+python-multipart
