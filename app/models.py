@@ -12,4 +12,5 @@ class Venda(SQLModel, table=True):
     custo_func: float
     custo_copos: float
     custo_boleto: float
+    lucro: float # Novo campo para lucro
     observacoes: str | None = None

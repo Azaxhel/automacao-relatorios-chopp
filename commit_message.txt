@@ -1,1 +1,0 @@
-fix: Corrige validação de webhook do Twilio para HTTPS

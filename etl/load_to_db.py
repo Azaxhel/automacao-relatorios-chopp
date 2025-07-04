@@ -38,6 +38,7 @@ def load():
                 custo_func=row.get("custo_func", 0.0),
                 custo_copos=row.get("custo_copos", 0.0),
                 custo_boleto=row.get("custo_boleto", 0.0),
+                lucro=row.get("lucro", 0.0),
                 observacoes=row.get("observacoes")
             )
             sess.add(venda)
