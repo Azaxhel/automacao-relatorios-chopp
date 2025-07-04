@@ -1,3 +1,9 @@
 master.csv
 trailer.db
 dados/
+
+# Ignorar arquivos de ambiente
+.env
+
+# Ignorar cache do Python
+__pycache__/

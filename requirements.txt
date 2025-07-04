@@ -3,3 +3,5 @@ uvicorn
 sqlmodel
 pandas
 python-dotenv
+twilio
+psycopg2-binary
