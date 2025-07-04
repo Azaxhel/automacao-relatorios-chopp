@@ -6,6 +6,7 @@ from fastapi.security import HTTPBasic, HTTPBasicCredentials
 from fastapi.responses import Response, HTMLResponse
 from sqlmodel import Session, select
 from app.database import engine # Importa o engine
+from app.models import Venda # Importa o modelo Venda
 from datetime import date
 from collections import Counter
 from twilio.twiml.messaging_response import MessagingResponse
