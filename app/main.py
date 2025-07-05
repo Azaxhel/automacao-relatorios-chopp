@@ -5,7 +5,7 @@ from fastapi import FastAPI, HTTPException, Query, Request, Form, Depends
 from fastapi.security import HTTPBasic, HTTPBasicCredentials
 from fastapi.responses import Response, HTMLResponse
 from sqlmodel import Session, select
-from app.database import engine # Importa o engine
+from app.database import engine, init_db # Importa o engine e a função init_db
 from app.models import Venda # Importa o modelo Venda
 from datetime import date
 from collections import Counter
