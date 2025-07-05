@@ -21,6 +21,10 @@ print(f"--> Senha do .env: {os.getenv('FORM_PASSWORD')}")
 
 app = FastAPI(title="API Trailer de Chopp")
 
+@app.on_event("startup")
+def on_startup():
+    init_db()
+
 # --- Configuração de Segurança ---
 
 # Obtém o Auth Token do Twilio das variáveis de ambiente
@@ -74,6 +78,7 @@ async def register_venda(
     """
     Recebe os dados do formulário e salva no banco de dados (protegido por senha).
     """
+    lucro = total - custo_func - custo_copos - custo_boleto
     nova_venda = Venda(
         data=data,
         total=total,
@@ -83,6 +88,7 @@ async def register_venda(
         custo_func=custo_func,
         custo_copos=custo_copos,
         custo_boleto=custo_boleto,
+        lucro=lucro, # Adiciona o cálculo do lucro
         dia_semana=data.strftime('%A') # Salva o dia da semana
     )
     
