@@ -102,6 +102,7 @@
                     <option value="">Selecione o tipo de venda</option>
                     <option value="feira">Feira (Venda por Copo)</option>
                     <option value="barril_festas">Barril Festas (Venda de Barril Fechado)</option>
+                    <option value="boleto">Boleto (Registro de Custo)</option>
                 </select>
             </div>
 
@@ -130,8 +131,11 @@
                     <label for="custo_copos">Custo Copos (R$)</label>
                     <input type="number" id="custo_copos" name="custo_copos" step="0.01" placeholder="Ex: 50.25">
                 </div>
+                </div>
+
+            <div id="campos_boleto" style="display:none;">
                 <div class="form-group">
-                    <label for="custo_boleto">Boleto Klaro (R$)</label>
+                    <label for="custo_boleto">Custo Boleto (R$)</label>
                     <input type="number" id="custo_boleto" name="custo_boleto" step="0.01" placeholder="Ex: 25.00">
                 </div>
             </div>
@@ -292,25 +296,28 @@
             const tipoVendaSelect = document.getElementById('tipo_venda');
             const camposFeira = document.getElementById('campos_feira');
             const camposBarrilFestas = document.getElementById('campos_barril_festas');
+            const camposBoleto = document.getElementById('campos_boleto');
 
             function toggleCamposVenda() {
+                // Esconde todos os campos e remove o atributo required
+                camposFeira.style.display = 'none';
+                camposBarrilFestas.style.display = 'none';
+                camposBoleto.style.display = 'none';
+
+                camposFeira.querySelectorAll('input').forEach(input => input.required = false);
+                camposBarrilFestas.querySelectorAll('input').forEach(input => input.required = false);
+                camposBoleto.querySelectorAll('input').forEach(input => input.required = false);
+
                 if (tipoVendaSelect.value === 'feira') {
                     camposFeira.style.display = 'block';
-                    camposBarrilFestas.style.display = 'none';
-                    // Campos de feira são obrigatórios
                     camposFeira.querySelectorAll('input').forEach(input => input.required = true);
-                    camposBarrilFestas.querySelectorAll('input').forEach(input => input.required = false);
                 } else if (tipoVendaSelect.value === 'barril_festas') {
-                    camposFeira.style.display = 'none';
                     camposBarrilFestas.style.display = 'block';
-                    // Campos de barril_festas são obrigatórios
-                    camposFeira.querySelectorAll('input').forEach(input => input.required = false);
                     camposBarrilFestas.querySelectorAll('input').forEach(input => input.required = true);
-                } else {
-                    camposFeira.style.display = 'none';
-                    camposBarrilFestas.style.display = 'none';
-                    camposFeira.querySelectorAll('input').forEach(input => input.required = false);
-                    camposBarrilFestas.querySelectorAll('input').forEach(input => input.required = false);
+                } else if (tipoVendaSelect.value === 'boleto') {
+                    camposBoleto.style.display = 'block';
+                    // Apenas custo_boleto é obrigatório para boleto
+                    document.getElementById('custo_boleto').required = true;
                 }
             }
 

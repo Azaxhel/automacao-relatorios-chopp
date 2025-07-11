@@ -140,8 +140,13 @@ async def register_venda(
             )
             sess.add(movimento_saida_barril)
 
+        elif tipo_venda == "boleto":
+            venda_total_calculada = 0.0
+            barris_baixados = 0.0
+            lucro = -(custo_boleto or 0.0) # Lucro é o negativo do custo do boleto
+
         else:
-            raise HTTPException(status_code=400, detail="Tipo de venda inválido. Use 'feira' ou 'barril_festas'.")
+            raise HTTPException(status_code=400, detail="Tipo de venda inválido. Use 'feira', 'barril_festas' ou 'boleto'.")
 
         nova_venda = Venda(
             data=data,
@@ -188,6 +193,7 @@ async def create_produto(
 async def get_produtos(username: str = Depends(get_current_username)):
     with Session(engine) as sess:
         produtos = sess.exec(select(Produto)).all()
+        print(f"DEBUG: Produtos retornados para selectbox: {[p.nome for p in produtos]}") # DEBUG
     return produtos
 
 # --- Endpoints de Estoque ---
