@@ -310,43 +310,37 @@
             const quantidadeBarrisVendidosInput = document.getElementById('quantidade_barris_vendidos');
 
             function toggleCamposVenda() {
-                // Esconde todos os campos e remove o atributo required de todos os inputs
+                // Esconde todos os campos
                 camposFeira.style.display = 'none';
                 camposBarrilFestas.style.display = 'none';
 
-                // Define todos os campos como não obrigatórios e limpa seus valores
+                // Define todos os campos como não obrigatórios, limpa seus valores e os desabilita
                 [totalInput, cartaoInput, dinheiroInput, pixInput, custoFuncInput, custoCoposInput, custoBoletoInput, quantidadeBarrisVendidosInput].forEach(input => {
                     if (input) {
                         input.required = false;
-                        input.value = ''; // Limpa o valor para evitar envio de string vazia
-                        input.disabled = false; // Habilita por padrão, será desabilitado se necessário
+                        input.value = '';
+                        input.disabled = true; // Desabilita o campo
                     }
                 });
 
-                // Desabilita o campo de barris vendidos por padrão
-                if (quantidadeBarrisVendidosInput) {
-                    quantidadeBarrisVendidosInput.disabled = true;
-                }
-
                 if (tipoVendaSelect.value === 'feira') {
                     camposFeira.style.display = 'block';
-                    // Campos de feira são obrigatórios, exceto custo_boleto (que é opcional)
                     totalInput.required = true;
-                    cartaoInput.required = true;
-                    dinheiroInput.required = true;
-                    pixInput.required = true;
-                    custoFuncInput.required = true;
-                    custoCoposInput.required = true;
-                    // custoBoletoInput.required = false; // Já é false por padrão
+                    totalInput.disabled = false;
+                    cartaoInput.disabled = false;
+                    dinheiroInput.disabled = false;
+                    pixInput.disabled = false;
+                    custoFuncInput.disabled = false;
+                    custoCoposInput.disabled = false;
+                    custoBoletoInput.disabled = false;
                 } else if (tipoVendaSelect.value === 'barril_festas') {
                     camposBarrilFestas.style.display = 'block';
-                    // Campos de barril_festas são obrigatórios
                     quantidadeBarrisVendidosInput.required = true;
                     quantidadeBarrisVendidosInput.disabled = false; // Habilita quando for barril_festas
                 } else if (tipoVendaSelect.value === 'boleto') {
                     camposFeira.style.display = 'block'; // Mostrar campos de feira para usar custo_boleto
-                    // Apenas custo_boleto é obrigatório para boleto
                     custoBoletoInput.required = true;
+                    custoBoletoInput.disabled = false;
                 }
             }
 
