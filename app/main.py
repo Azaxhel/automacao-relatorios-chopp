@@ -120,8 +120,8 @@ async def register_venda(
                 .where(MovimentoEstoque.produto_id == produto.id, MovimentoEstoque.tipo_movimento == "entrada")
             ).all()
 
-            total_custo_entradas = sum(e.quantidade * e.custo_unitario for e in entradas_produto if e.custo_unitario is not None)
-            total_quantidade_entradas = sum(e.quantidade for e in entradas_produto)
+            total_custo_entradas = sum(e[0] * e[1] for e in entradas_produto if e[1] is not None)
+            total_quantidade_entradas = sum(e[0] for e in entradas_produto)
             
             custo_medio_barril = 0.0
             if total_quantidade_entradas > 0:
