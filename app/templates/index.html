@@ -319,8 +319,14 @@
                     if (input) {
                         input.required = false;
                         input.value = ''; // Limpa o valor para evitar envio de string vazia
+                        input.disabled = false; // Habilita por padrão, será desabilitado se necessário
                     }
                 });
+
+                // Desabilita o campo de barris vendidos por padrão
+                if (quantidadeBarrisVendidosInput) {
+                    quantidadeBarrisVendidosInput.disabled = true;
+                }
 
                 if (tipoVendaSelect.value === 'feira') {
                     camposFeira.style.display = 'block';
@@ -336,6 +342,7 @@
                     camposBarrilFestas.style.display = 'block';
                     // Campos de barril_festas são obrigatórios
                     quantidadeBarrisVendidosInput.required = true;
+                    quantidadeBarrisVendidosInput.disabled = false; // Habilita quando for barril_festas
                 } else if (tipoVendaSelect.value === 'boleto') {
                     camposFeira.style.display = 'block'; // Mostrar campos de feira para usar custo_boleto
                     // Apenas custo_boleto é obrigatório para boleto
