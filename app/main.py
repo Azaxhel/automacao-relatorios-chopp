@@ -266,16 +266,16 @@ async def get_estoque_atual(username: str = Depends(get_current_username)):
             # TODO: Implementar a baixa automática por vendas (próximo passo)
             # Por enquanto, as vendas não afetam o estoque aqui.
 
-            total_entradas = sum(entradas)
-            total_saidas_manuais = sum(saidas_manuais)
+            total_entradas = sum(q[0] for q in entradas if q is not None)
+            total_saidas_manuais = sum(q[0] for q in saidas_manuais if q is not None)
             
             estoque_atual = total_entradas - total_saidas_manuais
             
             estoque_info[produto.nome] = {
                 "quantidade_barris": estoque_atual,
-                "volume_litros_total": estoque_atual * produto.volume_litros,
-                "preco_venda_litro": produto.preco_venda_litro,
-                "preco_venda_barril_fechado": produto.preco_venda_barril_fechado
+                "volume_litros_total": estoque_atual * (produto.volume_litros or 0.0),
+                "preco_venda_litro": (produto.preco_venda_litro or 0.0),
+                "preco_venda_barril_fechado": (produto.preco_venda_barril_fechado or 0.0)
             }
     return estoque_info
 
