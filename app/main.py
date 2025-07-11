@@ -126,13 +126,12 @@ async def register_venda(
 @app.post("/produtos", response_class=HTMLResponse)
 async def create_produto(
     nome: str = Form(...),
-    preco_venda_litro: float = Form(...),
     preco_venda_barril_fechado: float = Form(...),
     username: str = Depends(get_current_username)
 ):
     produto = Produto(
         nome=nome,
-        preco_venda_litro=preco_venda_litro,
+        preco_venda_litro=20.0, # Valor fixo
         preco_venda_barril_fechado=preco_venda_barril_fechado
     )
     with Session(engine) as sess:
