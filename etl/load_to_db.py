@@ -1,9 +1,9 @@
 from pathlib import Path
 import pandas as pd
 from sqlalchemy import delete
-from sqlmodel import Session
+from sqlmodel import Session, select
 from app.database import engine, init_db
-from app.models import Venda
+from app.models import Venda, Produto # Importa Produto
 
 # Caminho para o CSV mestre
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -13,6 +13,16 @@ def load():
     # Inicializa o banco (cria tabelas se não existirem)
     init_db()
 
+    # Busca o ID do produto "Chopp Pilsen 50L"
+    pilsen_id = None
+    with Session(engine) as sess:
+        pilsen_produto = sess.exec(select(Produto).where(Produto.nome == "Chopp Pilsen 50L")).first()
+        if pilsen_produto:
+            pilsen_id = pilsen_produto.id
+        else:
+            print("Erro: Produto 'Chopp Pilsen 50L' não encontrado no banco de dados. Por favor, cadastre-o primeiro.")
+            return # Aborta a carga se o produto não for encontrado
+
     # Lê o CSV mestre com parse de datas
     df = pd.read_csv(MASTER_CSV, parse_dates=["data"])
     # Converte para datetime.date
@@ -21,7 +31,8 @@ def load():
     # --- Apaga todas as vendas para as datas deste CSV ---
     datas = df["data"].dropna().unique().tolist()
     with Session(engine) as sess:
-        stmt = delete(Venda).where(Venda.data.in_(datas))
+        # Apaga vendas associadas ao produto Pilsen para as datas do CSV
+        stmt = delete(Venda).where(Venda.data.in_(datas), Venda.produto_id == pilsen_id)
         sess.exec(stmt)
         sess.commit()
 
@@ -39,7 +50,8 @@ def load():
                 custo_copos=row.get("custo_copos", 0.0),
                 custo_boleto=row.get("custo_boleto", 0.0),
                 lucro=row.get("lucro", 0.0),
-                observacoes=row.get("observacoes")
+                observacoes=row.get("observacoes"),
+                produto_id=pilsen_id # Associa ao produto Pilsen
             )
             sess.add(venda)
         sess.commit()
