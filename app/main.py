@@ -67,57 +67,100 @@ async def get_registration_form(username: str = Depends(get_current_username)):
 async def register_venda(
     data: date = Form(...),
     produto_id: int = Form(...),
-    total: float = Form(...),
-    cartao: float = Form(...),
-    dinheiro: float = Form(...),
-    pix: float = Form(...),
-    custo_func: float = Form(...),
-    custo_copos: float = Form(...),
-    custo_boleto: float = Form(...),
+    tipo_venda: str = Form(...), # Novo campo para tipo de venda
+    total: Optional[float] = Form(None), # Total pode ser None para barril_festas
+    cartao: Optional[float] = Form(None),
+    dinheiro: Optional[float] = Form(None),
+    pix: Optional[float] = Form(None),
+    custo_func: Optional[float] = Form(None),
+    custo_copos: Optional[float] = Form(None),
+    custo_boleto: Optional[float] = Form(None),
+    quantidade_barris_vendidos: Optional[float] = Form(None), # Para barril_festas
     username: str = Depends(get_current_username) # Protege o endpoint
 ):
     """
     Recebe os dados do formulário e salva no banco de dados (protegido por senha).
     """
     with Session(engine) as sess:
-        # Busca o produto para obter o volume por barril e o preco_venda_litro
         produto = sess.exec(select(Produto).where(Produto.id == produto_id)).first()
         if not produto:
             raise HTTPException(status_code=404, detail="Produto não encontrado.")
 
-        lucro = total - custo_func - custo_copos - custo_boleto
+        lucro = 0.0
+        barris_baixados = 0.0
+        venda_total_calculada = 0.0
+
+        if tipo_venda == "feira":
+            if total is None: raise HTTPException(status_code=400, detail="Total da venda é obrigatório para vendas de feira.")
+            venda_total_calculada = total
+            lucro = total - (custo_func or 0.0) - (custo_copos or 0.0) - (custo_boleto or 0.0)
+            litros_vendidos = total / produto.preco_venda_litro
+            barris_baixados = litros_vendidos / produto.volume_litros
+            
+            # Registra o movimento de saída por venda de feira
+            movimento_saida_venda = MovimentoEstoque(
+                produto_id=produto_id,
+                tipo_movimento="saida_venda",
+                quantidade=barris_baixados,
+                custo_unitario=None,
+                data_movimento=data
+            )
+            sess.add(movimento_saida_venda)
+
+        elif tipo_venda == "barril_festas":
+            if quantidade_barris_vendidos is None: raise HTTPException(status_code=400, detail="Quantidade de barris vendidos é obrigatória para vendas de barril_festas.")
+            
+            venda_total_calculada = quantidade_barris_vendidos * produto.preco_venda_barril_fechado
+            barris_baixados = quantidade_barris_vendidos
+
+            # Calcular o custo médio do barril para o lucro
+            entradas_produto = sess.exec(
+                select(MovimentoEstoque.quantidade, MovimentoEstoque.custo_unitario)
+                .where(MovimentoEstoque.produto_id == produto.id, MovimentoEstoque.tipo_movimento == "entrada")
+            ).all()
+
+            total_custo_entradas = sum(e.quantidade * e.custo_unitario for e in entradas_produto if e.custo_unitario is not None)
+            total_quantidade_entradas = sum(e.quantidade for e in entradas_produto)
+            
+            custo_medio_barril = 0.0
+            if total_quantidade_entradas > 0:
+                custo_medio_barril = total_custo_entradas / total_quantidade_entradas
+            
+            custo_total_venda_barril = barris_baixados * custo_medio_barril
+            lucro = venda_total_calculada - custo_total_venda_barril
+
+            # Registra o movimento de saída por venda de barril_festas
+            movimento_saida_barril = MovimentoEstoque(
+                produto_id=produto_id,
+                tipo_movimento="saida_venda_barril",
+                quantidade=barris_baixados,
+                custo_unitario=custo_medio_barril, # Opcional: registrar o custo médio da baixa
+                data_movimento=data
+            )
+            sess.add(movimento_saida_barril)
+
+        else:
+            raise HTTPException(status_code=400, detail="Tipo de venda inválido. Use 'feira' ou 'barril_festas'.")
+
         nova_venda = Venda(
             data=data,
             produto_id=produto_id,
-            total=total,
+            tipo_venda=tipo_venda,
+            total=venda_total_calculada,
             cartao=cartao,
             dinheiro=dinheiro,
             pix=pix,
             custo_func=custo_func,
             custo_copos=custo_copos,
             custo_boleto=custo_boleto,
-            lucro=lucro, # Adiciona o cálculo do lucro
-            dia_semana=data.strftime('%A') # Salva o dia da semana
+            lucro=lucro,
+            dia_semana=data.strftime('%A'),
+            quantidade_barris_vendidos=barris_baixados,
+            preco_venda_litro_registrado=produto.preco_venda_litro if tipo_venda == "feira" else None
         )
         sess.add(nova_venda)
         sess.commit()
         sess.refresh(nova_venda)
-
-        # Calcula a quantidade de litros vendidos e a quantidade de barris
-        # Arredondamos para cima para garantir que o estoque seja baixado corretamente
-        litros_vendidos = total / produto.preco_venda_litro
-        barris_baixados = litros_vendidos / produto.volume_litros
-
-        # Registra o movimento de saída por venda
-        movimento_saida_venda = MovimentoEstoque(
-            produto_id=produto_id,
-            tipo_movimento="saida_venda",
-            quantidade=barris_baixados, # Pode ser um float, representando barris parciais
-            custo_unitario=None, # Não se aplica diretamente aqui
-            data_movimento=data
-        )
-        sess.add(movimento_saida_venda)
-        sess.commit()
 
     return HTMLResponse(content="<h1>Registro salvo com sucesso!</h1><p><a href='/'>Registrar outra venda</a></p>")
 

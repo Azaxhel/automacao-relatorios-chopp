@@ -7,6 +7,7 @@ class Produto(SQLModel, table=True):
     nome: str = Field(index=True)
     preco_venda_litro: float
     preco_venda_barril_fechado: float
+    volume_litros: float # Adicionado para calcular a baixa de estoque corretamente
 
     # Relacionamentos para o SQLAlchemy entender as ligações
     movimentos: List["MovimentoEstoque"] = Relationship(back_populates="produto")
@@ -14,8 +15,8 @@ class Produto(SQLModel, table=True):
 
 class MovimentoEstoque(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
-    tipo_movimento: str  # 'entrada', 'saida_manual', 'ajuste_perda'
-    quantidade: int      # NÃºmero de barris
+    tipo_movimento: str  # 'entrada', 'saida_manual', 'saida_venda', 'saida_venda_barril'
+    quantidade: float      # Número de barris (pode ser float para vendas parciais)
     custo_unitario: Optional[float] = None # Custo por barril (na entrada)
     data_movimento: date
 
@@ -26,15 +27,18 @@ class Venda(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     data: date
     dia_semana: str
+    tipo_venda: str # 'copo' ou 'barril'
     total: float
     cartao: float
     dinheiro: float
     pix: float
-    custo_func: float
-    custo_copos: float
-    custo_boleto: float
+    custo_func: Optional[float] = None
+    custo_copos: Optional[float] = None
+    custo_boleto: Optional[float] = None
     lucro: float
     observacoes: Optional[str] = None
+    quantidade_barris_vendidos: Optional[float] = None # Para vendas de barril fechado
+    preco_venda_litro_registrado: Optional[float] = None # Preço por litro no momento da venda
 
     produto_id: Optional[int] = Field(default=None, foreign_key="produto.id")
     produto: Optional[Produto] = Relationship(back_populates="vendas")

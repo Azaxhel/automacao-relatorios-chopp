@@ -95,33 +95,52 @@
                     <!-- Opções serão carregadas via JavaScript -->
                 </select>
             </div>
+
             <div class="form-group">
-                <label for="total">Venda Total (R$)</label>
-                <input type="number" id="total" name="total" step="0.01" required placeholder="Ex: 1500.50">
+                <label for="tipo_venda">Tipo de Venda</label>
+                <select id="tipo_venda" name="tipo_venda" required>
+                    <option value="">Selecione o tipo de venda</option>
+                    <option value="feira">Feira (Venda por Copo)</option>
+                    <option value="barril_festas">Barril Festas (Venda de Barril Fechado)</option>
+                </select>
             </div>
-            <div class="form-group">
-                <label for="cartao">Venda no Cartão (R$)</label>
-                <input type="number" id="cartao" name="cartao" step="0.01" required placeholder="Ex: 800.00">
+
+            <div id="campos_feira">
+                <div class="form-group">
+                    <label for="total">Venda Total (R$)</label>
+                    <input type="number" id="total" name="total" step="0.01" placeholder="Ex: 1500.50">
+                </div>
+                <div class="form-group">
+                    <label for="cartao">Venda no Cartão (R$)</label>
+                    <input type="number" id="cartao" name="cartao" step="0.01" placeholder="Ex: 800.00">
+                </div>
+                <div class="form-group">
+                    <label for="dinheiro">Venda em Dinheiro (R$)</label>
+                    <input type="number" id="dinheiro" name="dinheiro" step="0.01" placeholder="Ex: 500.00">
+                </div>
+                <div class="form-group">
+                    <label for="pix">Venda no Pix (R$)</label>
+                    <input type="number" id="pix" name="pix" step="0.01" placeholder="Ex: 200.50">
+                </div>
+                <div class="form-group">
+                    <label for="custo_func">Custo Funcionário (R$)</label>
+                    <input type="number" id="custo_func" name="custo_func" step="0.01" placeholder="Ex: 250.00">
+                </div>
+                <div class="form-group">
+                    <label for="custo_copos">Custo Copos (R$)</label>
+                    <input type="number" id="custo_copos" name="custo_copos" step="0.01" placeholder="Ex: 50.25">
+                </div>
+                <div class="form-group">
+                    <label for="custo_boleto">Boleto Klaro (R$)</label>
+                    <input type="number" id="custo_boleto" name="custo_boleto" step="0.01" placeholder="Ex: 25.00">
+                </div>
             </div>
-            <div class="form-group">
-                <label for="dinheiro">Venda em Dinheiro (R$)</label>
-                <input type="number" id="dinheiro" name="dinheiro" step="0.01" required placeholder="Ex: 500.00">
-            </div>
-            <div class="form-group">
-                <label for="pix">Venda no Pix (R$)</label>
-                <input type="number" id="pix" name="pix" step="0.01" required placeholder="Ex: 200.50">
-            </div>
-            <div class="form-group">
-                <label for="custo_func">Custo Funcionário (R$)</label>
-                <input type="number" id="custo_func" name="custo_func" step="0.01" required placeholder="Ex: 250.00">
-            </div>
-            <div class="form-group">
-                <label for="custo_copos">Custo Copos (R$)</label>
-                <input type="number" id="custo_copos" name="custo_copos" step="0.01" required placeholder="Ex: 50.25">
-            </div>
-            <div class="form-group">
-                <label for="custo_boleto">Boleto Klaro (R$)</label>
-                <input type="number" id="custo_boleto" name="custo_boleto" step="0.01" required placeholder="Ex: 25.00">
+
+            <div id="campos_barril_festas" style="display:none;">
+                <div class="form-group">
+                    <label for="quantidade_barris_vendidos">Quantidade de Barris Vendidos</label>
+                    <input type="number" id="quantidade_barris_vendidos" name="quantidade_barris_vendidos" min="1" step="0.01" placeholder="Ex: 1.5 (para um barril e meio)">
+                </div>
             </div>
             <button type="submit">Salvar Registro</button>
         </form>
@@ -268,7 +287,35 @@
             document.getElementById('data').value = today;
             document.getElementById('entrada_data_movimento').value = today;
             document.getElementById('saida_data_movimento').value = today;
-        });
+
+            // Lógica para mostrar/esconder campos de acordo com o tipo de venda
+            const tipoVendaSelect = document.getElementById('tipo_venda');
+            const camposFeira = document.getElementById('campos_feira');
+            const camposBarrilFestas = document.getElementById('campos_barril_festas');
+
+            function toggleCamposVenda() {
+                if (tipoVendaSelect.value === 'feira') {
+                    camposFeira.style.display = 'block';
+                    camposBarrilFestas.style.display = 'none';
+                    // Campos de feira são obrigatórios
+                    camposFeira.querySelectorAll('input').forEach(input => input.required = true);
+                    camposBarrilFestas.querySelectorAll('input').forEach(input => input.required = false);
+                } else if (tipoVendaSelect.value === 'barril_festas') {
+                    camposFeira.style.display = 'none';
+                    camposBarrilFestas.style.display = 'block';
+                    // Campos de barril_festas são obrigatórios
+                    camposFeira.querySelectorAll('input').forEach(input => input.required = false);
+                    camposBarrilFestas.querySelectorAll('input').forEach(input => input.required = true);
+                } else {
+                    camposFeira.style.display = 'none';
+                    camposBarrilFestas.style.display = 'none';
+                    camposFeira.querySelectorAll('input').forEach(input => input.required = false);
+                    camposBarrilFestas.querySelectorAll('input').forEach(input => input.required = false);
+                }
+            }
+
+            tipoVendaSelect.addEventListener('change', toggleCamposVenda);
+            toggleCamposVenda(); // Chama na carga inicial da página
     </script>
 </body>
 </html>
