@@ -254,29 +254,31 @@ async def get_estoque_atual(username: str = Depends(get_current_username)):
         estoque_info = {}
 
         for produto in produtos:
-            entradas = sess.exec(
-                select(MovimentoEstoque.quantidade)
-                .where(MovimentoEstoque.produto_id == produto.id, MovimentoEstoque.tipo_movimento == "entrada")
-            ).all()
-            saidas_manuais = sess.exec(
-                select(MovimentoEstoque.quantidade)
-                .where(MovimentoEstoque.produto_id == produto.id, MovimentoEstoque.tipo_movimento == "saida_manual")
-            ).all()
-            
-            # TODO: Implementar a baixa automática por vendas (próximo passo)
-            # Por enquanto, as vendas não afetam o estoque aqui.
-
-            total_entradas = sum(q[0] for q in entradas if q is not None)
-            total_saidas_manuais = sum(q[0] for q in saidas_manuais if q is not None)
-            
-            estoque_atual = total_entradas - total_saidas_manuais
-            
-            estoque_info[produto.nome] = {
-                "quantidade_barris": estoque_atual,
-                "volume_litros_total": estoque_atual * (produto.volume_litros or 0.0),
-                "preco_venda_litro": (produto.preco_venda_litro or 0.0),
-                "preco_venda_barril_fechado": (produto.preco_venda_barril_fechado or 0.0)
-            }
+            try:
+                entradas = sess.exec(
+                    select(MovimentoEstoque.quantidade)
+                    .where(MovimentoEstoque.produto_id == produto.id, MovimentoEstoque.tipo_movimento == "entrada")
+                ).all()
+                saidas_manuais = sess.exec(
+                    select(MovimentoEstoque.quantidade)
+                    .where(MovimentoEstoque.produto_id == produto.id, MovimentoEstoque.tipo_movimento == "saida_manual")
+                ).all()
+                
+                total_entradas = sum(q[0] for q in entradas if q is not None)
+                total_saidas_manuais = sum(q[0] for q in saidas_manuais if q is not None)
+                
+                estoque_atual = total_entradas - total_saidas_manuais
+                
+                estoque_info[produto.nome] = {
+                    "quantidade_barris": estoque_atual,
+                    "volume_litros_total": estoque_atual * (produto.volume_litros or 0.0),
+                    "preco_venda_litro": (produto.preco_venda_litro or 0.0),
+                    "preco_venda_barril_fechado": (produto.preco_venda_barril_fechado or 0.0)
+                }
+            except Exception as e:
+                print(f"Erro ao processar produto {produto.nome} (ID: {produto.id}) para estoque: {e}")
+                estoque_info[f"{produto.nome} (Erro)"] = {"quantidade_barris": "N/A", "volume_litros_total": "N/A", "error": str(e)}
+                continue
     return estoque_info
 
 # --- Lógica de Relatórios ---

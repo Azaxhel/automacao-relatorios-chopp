@@ -28,10 +28,10 @@ class Venda(SQLModel, table=True):
     data: date
     dia_semana: str
     tipo_venda: str # 'copo' ou 'barril'
-    total: float
-    cartao: float
-    dinheiro: float
-    pix: float
+    total: Optional[float] = None
+    cartao: Optional[float] = None
+    dinheiro: Optional[float] = None
+    pix: Optional[float] = None
     custo_func: Optional[float] = None
     custo_copos: Optional[float] = None
     custo_boleto: Optional[float] = None
