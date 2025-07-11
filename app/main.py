@@ -8,6 +8,7 @@ from sqlmodel import Session, select
 from app.database import engine, init_db # Importa o engine e a função init_db
 from app.models import Venda, Produto, MovimentoEstoque # Importa os modelos Venda, Produto e MovimentoEstoque
 from datetime import date, datetime # Importa datetime para MovimentoEstoque
+from typing import Optional # Importa Optional para tipos opcionais
 from collections import Counter
 from twilio.twiml.messaging_response import MessagingResponse
 from twilio.request_validator import RequestValidator
