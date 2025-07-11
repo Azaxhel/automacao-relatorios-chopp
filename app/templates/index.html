@@ -131,13 +131,11 @@
                     <label for="custo_copos">Custo Copos (R$)</label>
                     <input type="number" id="custo_copos" name="custo_copos" step="0.01" placeholder="Ex: 50.25">
                 </div>
-                </div>
-
-            <div id="campos_boleto" style="display:none;">
                 <div class="form-group">
                     <label for="custo_boleto">Custo Boleto (R$)</label>
                     <input type="number" id="custo_boleto" name="custo_boleto" step="0.01" placeholder="Ex: 25.00">
                 </div>
+            </div>
             </div>
 
             <div id="campos_barril_festas" style="display:none;">
@@ -160,6 +158,10 @@
             <div class="form-group">
                 <label for="preco_venda_barril_fechado">Preço de Venda Barril Fechado (R$)</label>
                 <input type="number" id="preco_venda_barril_fechado" name="preco_venda_barril_fechado" step="0.01" required placeholder="Ex: 500.00">
+            </div>
+            <div class="form-group">
+                <label for="volume_litros">Volume em Litros (Ex: 50)</label>
+                <input type="number" id="volume_litros" name="volume_litros" step="0.01" required placeholder="Ex: 50.00">
             </div>
             <button type="submit">Cadastrar Produto</button>
         </form>
@@ -296,28 +298,39 @@
             const tipoVendaSelect = document.getElementById('tipo_venda');
             const camposFeira = document.getElementById('campos_feira');
             const camposBarrilFestas = document.getElementById('campos_barril_festas');
-            const camposBoleto = document.getElementById('campos_boleto');
 
             function toggleCamposVenda() {
-                // Esconde todos os campos e remove o atributo required
+                // Esconde todos os campos e remove o atributo required de todos os inputs
                 camposFeira.style.display = 'none';
                 camposBarrilFestas.style.display = 'none';
-                camposBoleto.style.display = 'none';
 
                 camposFeira.querySelectorAll('input').forEach(input => input.required = false);
                 camposBarrilFestas.querySelectorAll('input').forEach(input => input.required = false);
-                camposBoleto.querySelectorAll('input').forEach(input => input.required = false);
 
                 if (tipoVendaSelect.value === 'feira') {
                     camposFeira.style.display = 'block';
-                    camposFeira.querySelectorAll('input').forEach(input => input.required = true);
+                    // Todos os campos de feira são obrigatórios, exceto custo_boleto
+                    document.getElementById('total').required = true;
+                    document.getElementById('cartao').required = true;
+                    document.getElementById('dinheiro').required = true;
+                    document.getElementById('pix').required = true;
+                    document.getElementById('custo_func').required = true;
+                    document.getElementById('custo_copos').required = true;
+                    document.getElementById('custo_boleto').required = false; // Custo boleto é opcional para feira
                 } else if (tipoVendaSelect.value === 'barril_festas') {
                     camposBarrilFestas.style.display = 'block';
-                    camposBarrilFestas.querySelectorAll('input').forEach(input => input.required = true);
+                    // Campos de barril_festas são obrigatórios
+                    document.getElementById('quantidade_barris_vendidos').required = true;
                 } else if (tipoVendaSelect.value === 'boleto') {
-                    camposBoleto.style.display = 'block';
-                    // Apenas custo_boleto é obrigatório para boleto
+                    camposFeira.style.display = 'block'; // Mostrar campos de feira para usar custo_boleto
+                    // Apenas custo_boleto é obrigatório para boleto, outros campos de feira são opcionais
                     document.getElementById('custo_boleto').required = true;
+                    document.getElementById('total').required = false;
+                    document.getElementById('cartao').required = false;
+                    document.getElementById('dinheiro').required = false;
+                    document.getElementById('pix').required = false;
+                    document.getElementById('custo_func').required = false;
+                    document.getElementById('custo_copos').required = false;
                 }
             }
 
