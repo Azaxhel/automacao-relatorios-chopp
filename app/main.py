@@ -111,7 +111,7 @@ async def register_venda(
         elif tipo_venda == "barril_festas":
             if quantidade_barris_vendidos is None: raise HTTPException(status_code=400, detail="Quantidade de barris vendidos é obrigatória para vendas de barril_festas.")
             
-            venda_total_calculada = quantidade_barris_vendidos * produto.preco_venda_barril_fechado
+            venda_total_calculada = quantidade_barris_vendidos * (produto.preco_venda_barril_fechado or 0.0)
             barris_baixados = quantidade_barris_vendidos
 
             # Calcular o custo médio do barril para o lucro
