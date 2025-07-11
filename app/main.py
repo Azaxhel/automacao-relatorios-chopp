@@ -236,6 +236,7 @@ async def whatsapp_webhook(request: Request, body: str = Form(..., alias="Body")
             else:
                 tendencia_str = "\n📈 Tendência: N/A (sem dados do mês anterior)."
 
+            gastos_totais = report['gasto_funcionarios'] + report['gasto_copos'] + report['gasto_boleto']
             text_reply = (
                 f"🧾 Relatório {mes}/{ano}\n"
                 f"--------------------------\n"
@@ -243,7 +244,11 @@ async def whatsapp_webhook(request: Request, body: str = Form(..., alias="Body")
                 f"Receita líquida: R$ {report['receita_liquida']:.2f}\n"
                 f"Média por dia: R$ {report['media_vendas']:.2f}\n"
                 f"--------------------------\n"
-                f"Gastos Totais: R$ {(report['gasto_funcionarios'] + report['gasto_copos'] + report['gasto_boleto']):.2f}\n"
+                f"Gastos Detalhados:\n"
+                f"  - Funcionários: R$ {report['gasto_funcionarios']:.2f}\n"
+                f"  - Copos: R$ {report['gasto_copos']:.2f}\n"
+                f"  - Boleto: R$ {report['gasto_boleto']:.2f}\n"
+                f"Total de Gastos: R$ {gastos_totais:.2f}\n"
                 f"--------------------------\n"
                 f"Dias registrados: {report['dias_registrados']}"
                 f"{tendencia_str}"
@@ -322,9 +327,20 @@ async def whatsapp_webhook(request: Request, body: str = Form(..., alias="Body")
             if not ranking:
                 resp.message(f"Não há dados de vendas para {mes}/{ano}.")
             else:
+                # Dicionário para traduzir os dias da semana
+                traducao_dias = {
+                    'Monday': 'Segunda-feira',
+                    'Tuesday': 'Terça-feira',
+                    'Wednesday': 'Quarta-feira',
+                    'Thursday': 'Quinta-feira',
+                    'Friday': 'Sexta-feira',
+                    'Saturday': 'Sábado',
+                    'Sunday': 'Domingo'
+                }
                 reply_lines = [f"🏆 Melhores Dias de {mes}/{ano} 🏆"]
                 for i, (dia, total) in enumerate(ranking):
-                    reply_lines.append(f"{i+1}. {dia.capitalize()}: R$ {total:.2f}")
+                    dia_traduzido = traducao_dias.get(dia.capitalize(), dia)
+                    reply_lines.append(f"{i+1}. {dia_traduzido}: R$ {total:.2f}")
                 resp.message("\n".join(reply_lines))
         except (ValueError, IndexError):
             resp.message("Formato inválido. Use: melhores dias <mês> <ano>")
