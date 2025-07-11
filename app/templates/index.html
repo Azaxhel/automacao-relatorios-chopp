@@ -299,38 +299,47 @@
             const camposFeira = document.getElementById('campos_feira');
             const camposBarrilFestas = document.getElementById('campos_barril_festas');
 
+            // Referências aos campos específicos
+            const totalInput = document.getElementById('total');
+            const cartaoInput = document.getElementById('cartao');
+            const dinheiroInput = document.getElementById('dinheiro');
+            const pixInput = document.getElementById('pix');
+            const custoFuncInput = document.getElementById('custo_func');
+            const custoCoposInput = document.getElementById('custo_copos');
+            const custoBoletoInput = document.getElementById('custo_boleto');
+            const quantidadeBarrisVendidosInput = document.getElementById('quantidade_barris_vendidos');
+
             function toggleCamposVenda() {
                 // Esconde todos os campos e remove o atributo required de todos os inputs
                 camposFeira.style.display = 'none';
                 camposBarrilFestas.style.display = 'none';
 
-                camposFeira.querySelectorAll('input').forEach(input => input.required = false);
-                camposBarrilFestas.querySelectorAll('input').forEach(input => input.required = false);
+                // Define todos os campos como não obrigatórios e limpa seus valores
+                [totalInput, cartaoInput, dinheiroInput, pixInput, custoFuncInput, custoCoposInput, custoBoletoInput, quantidadeBarrisVendidosInput].forEach(input => {
+                    if (input) {
+                        input.required = false;
+                        input.value = ''; // Limpa o valor para evitar envio de string vazia
+                    }
+                });
 
                 if (tipoVendaSelect.value === 'feira') {
                     camposFeira.style.display = 'block';
-                    // Todos os campos de feira são obrigatórios, exceto custo_boleto
-                    document.getElementById('total').required = true;
-                    document.getElementById('cartao').required = true;
-                    document.getElementById('dinheiro').required = true;
-                    document.getElementById('pix').required = true;
-                    document.getElementById('custo_func').required = true;
-                    document.getElementById('custo_copos').required = true;
-                    document.getElementById('custo_boleto').required = false; // Custo boleto é opcional para feira
+                    // Campos de feira são obrigatórios, exceto custo_boleto (que é opcional)
+                    totalInput.required = true;
+                    cartaoInput.required = true;
+                    dinheiroInput.required = true;
+                    pixInput.required = true;
+                    custoFuncInput.required = true;
+                    custoCoposInput.required = true;
+                    // custoBoletoInput.required = false; // Já é false por padrão
                 } else if (tipoVendaSelect.value === 'barril_festas') {
                     camposBarrilFestas.style.display = 'block';
                     // Campos de barril_festas são obrigatórios
-                    document.getElementById('quantidade_barris_vendidos').required = true;
+                    quantidadeBarrisVendidosInput.required = true;
                 } else if (tipoVendaSelect.value === 'boleto') {
                     camposFeira.style.display = 'block'; // Mostrar campos de feira para usar custo_boleto
-                    // Apenas custo_boleto é obrigatório para boleto, outros campos de feira são opcionais
-                    document.getElementById('custo_boleto').required = true;
-                    document.getElementById('total').required = false;
-                    document.getElementById('cartao').required = false;
-                    document.getElementById('dinheiro').required = false;
-                    document.getElementById('pix').required = false;
-                    document.getElementById('custo_func').required = false;
-                    document.getElementById('custo_copos').required = false;
+                    // Apenas custo_boleto é obrigatório para boleto
+                    custoBoletoInput.required = true;
                 }
             }
 
