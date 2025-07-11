@@ -6,8 +6,8 @@ from fastapi.security import HTTPBasic, HTTPBasicCredentials
 from fastapi.responses import Response, HTMLResponse
 from sqlmodel import Session, select
 from app.database import engine, init_db # Importa o engine e a função init_db
-from app.models import Venda # Importa o modelo Venda
-from datetime import date
+from app.models import Venda, Produto, MovimentoEstoque # Importa os modelos Venda, Produto e MovimentoEstoque
+from datetime import date, datetime # Importa datetime para MovimentoEstoque
 from collections import Counter
 from twilio.twiml.messaging_response import MessagingResponse
 from twilio.request_validator import RequestValidator
@@ -66,6 +66,7 @@ async def get_registration_form(username: str = Depends(get_current_username)):
 @app.post("/registrar_venda", response_class=HTMLResponse)
 async def register_venda(
     data: date = Form(...),
+    produto_id: int = Form(...),
     total: float = Form(...),
     cartao: float = Form(...),
     dinheiro: float = Form(...),
@@ -78,25 +79,154 @@ async def register_venda(
     """
     Recebe os dados do formulário e salva no banco de dados (protegido por senha).
     """
-    lucro = total - custo_func - custo_copos - custo_boleto
-    nova_venda = Venda(
-        data=data,
-        total=total,
-        cartao=cartao,
-        dinheiro=dinheiro,
-        pix=pix,
-        custo_func=custo_func,
-        custo_copos=custo_copos,
-        custo_boleto=custo_boleto,
-        lucro=lucro, # Adiciona o cálculo do lucro
-        dia_semana=data.strftime('%A') # Salva o dia da semana
-    )
-    
     with Session(engine) as sess:
+        # Busca o produto para obter o volume por barril e o preco_venda_litro
+        produto = sess.exec(select(Produto).where(Produto.id == produto_id)).first()
+        if not produto:
+            raise HTTPException(status_code=404, detail="Produto não encontrado.")
+
+        lucro = total - custo_func - custo_copos - custo_boleto
+        nova_venda = Venda(
+            data=data,
+            produto_id=produto_id,
+            total=total,
+            cartao=cartao,
+            dinheiro=dinheiro,
+            pix=pix,
+            custo_func=custo_func,
+            custo_copos=custo_copos,
+            custo_boleto=custo_boleto,
+            lucro=lucro, # Adiciona o cálculo do lucro
+            dia_semana=data.strftime('%A') # Salva o dia da semana
+        )
         sess.add(nova_venda)
+        sess.commit()
+        sess.refresh(nova_venda)
+
+        # Calcula a quantidade de litros vendidos e a quantidade de barris
+        # Arredondamos para cima para garantir que o estoque seja baixado corretamente
+        litros_vendidos = total / produto.preco_venda_litro
+        barris_baixados = litros_vendidos / produto.volume_litros
+
+        # Registra o movimento de saída por venda
+        movimento_saida_venda = MovimentoEstoque(
+            produto_id=produto_id,
+            tipo_movimento="saida_venda",
+            quantidade=barris_baixados, # Pode ser um float, representando barris parciais
+            custo_unitario=None, # Não se aplica diretamente aqui
+            data_movimento=data
+        )
+        sess.add(movimento_saida_venda)
         sess.commit()
 
     return HTMLResponse(content="<h1>Registro salvo com sucesso!</h1><p><a href='/'>Registrar outra venda</a></p>")
+
+# --- Endpoints de Produtos ---
+
+@app.post("/produtos", response_class=HTMLResponse)
+async def create_produto(
+    nome: str = Form(...),
+    preco_venda_litro: float = Form(...),
+    preco_venda_barril_fechado: float = Form(...),
+    username: str = Depends(get_current_username)
+):
+    produto = Produto(
+        nome=nome,
+        preco_venda_litro=preco_venda_litro,
+        preco_venda_barril_fechado=preco_venda_barril_fechado
+    )
+    with Session(engine) as sess:
+        sess.add(produto)
+        sess.commit()
+        sess.refresh(produto)
+    return HTMLResponse(content=f"<h1>Produto '{produto.nome}' cadastrado com sucesso!</h1><p><a href='/'>Voltar</a></p>")
+
+@app.get("/produtos", response_model=list[Produto])
+async def get_produtos(username: str = Depends(get_current_username)):
+    with Session(engine) as sess:
+        produtos = sess.exec(select(Produto)).all()
+    return produtos
+
+# --- Endpoints de Estoque ---
+
+@app.post("/estoque/entrada", response_class=HTMLResponse)
+async def register_entrada_estoque(
+    produto_id: int = Form(...),
+    quantidade: int = Form(...),
+    custo_unitario: float = Form(...),
+    data_movimento: date = Form(...),
+    username: str = Depends(get_current_username)
+):
+    movimento = MovimentoEstoque(
+        produto_id=produto_id,
+        tipo_movimento="entrada",
+        quantidade=quantidade,
+        custo_unitario=custo_unitario,
+        data_movimento=data_movimento
+    )
+    with Session(engine) as sess:
+        sess.add(movimento)
+        sess.commit()
+        sess.refresh(movimento)
+    return HTMLResponse(content=f"<h1>Entrada de {quantidade} barril(is) registrada com sucesso!</h1><p><a href='/'>Voltar</a></p>")
+
+@app.post("/estoque/saida_manual", response_class=HTMLResponse)
+async def register_saida_manual_estoque(
+    produto_id: int = Form(...),
+    quantidade: int = Form(...),
+    data_movimento: date = Form(...),
+    username: str = Depends(get_current_username)
+):
+    movimento = MovimentoEstoque(
+        produto_id=produto_id,
+        tipo_movimento="saida_manual",
+        quantidade=quantidade,
+        custo_unitario=None, # Saída manual não tem custo unitário associado diretamente
+        data_movimento=data_movimento
+    )
+    with Session(engine) as sess:
+        sess.add(movimento)
+        sess.commit()
+        sess.refresh(movimento)
+    return HTMLResponse(content=f"<h1>Saída manual de {quantidade} barril(is) registrada com sucesso!</h1><p><a href='/'>Voltar</a></p>")
+
+@app.get("/estoque", response_model=dict)
+async def get_estoque_atual(username: str = Depends(get_current_username)):
+    with Session(engine) as sess:
+        # Calcula o estoque atual por produto
+        # Soma as entradas e subtrai as saídas
+        # Isso é uma simplificação, um sistema de estoque real seria mais complexo
+        # e consideraria o volume em litros, não apenas barris.
+        # Por enquanto, vamos considerar a quantidade de barris.
+
+        produtos = sess.exec(select(Produto)).all()
+        estoque_info = {}
+
+        for produto in produtos:
+            entradas = sess.exec(
+                select(MovimentoEstoque.quantidade)
+                .where(MovimentoEstoque.produto_id == produto.id, MovimentoEstoque.tipo_movimento == "entrada")
+            ).all()
+            saidas_manuais = sess.exec(
+                select(MovimentoEstoque.quantidade)
+                .where(MovimentoEstoque.produto_id == produto.id, MovimentoEstoque.tipo_movimento == "saida_manual")
+            ).all()
+            
+            # TODO: Implementar a baixa automática por vendas (próximo passo)
+            # Por enquanto, as vendas não afetam o estoque aqui.
+
+            total_entradas = sum(entradas)
+            total_saidas_manuais = sum(saidas_manuais)
+            
+            estoque_atual = total_entradas - total_saidas_manuais
+            
+            estoque_info[produto.nome] = {
+                "quantidade_barris": estoque_atual,
+                "volume_litros_total": estoque_atual * produto.volume_litros,
+                "preco_venda_litro": produto.preco_venda_litro,
+                "preco_venda_barril_fechado": produto.preco_venda_barril_fechado
+            }
+    return estoque_info
 
 # --- Lógica de Relatórios ---
 

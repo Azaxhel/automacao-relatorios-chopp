@@ -1,19 +1,20 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-    <meta charset="UTF-T">
+    <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Registrar Venda - Bot Trailer</title>
+    <title>Gestão Trailer de Chopp</title>
     <style>
         body {
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
             background-color: #f4f4f9;
             color: #333;
             display: flex;
-            justify-content: center;
+            flex-direction: column;
             align-items: center;
-            height: 100vh;
-            margin: 0;
+            padding: 20px;
+            min-height: 100vh;
+            box-sizing: border-box;
         }
         .container {
             background: white;
@@ -21,12 +22,14 @@
             border-radius: 8px;
             box-shadow: 0 4px 12px rgba(0,0,0,0.1);
             width: 100%;
-            max-width: 400px;
+            max-width: 600px;
+            margin-bottom: 20px;
         }
-        h1 {
+        h1, h2 {
             font-size: 1.5rem;
             margin-bottom: 1.5rem;
             text-align: center;
+            color: #007bff;
         }
         .form-group {
             margin-bottom: 1rem;
@@ -36,7 +39,7 @@
             margin-bottom: 0.5rem;
             font-weight: 600;
         }
-        input[type="date"], input[type="number"] {
+        input[type="date"], input[type="number"], input[type="text"], select {
             width: 100%;
             padding: 0.75rem;
             border: 1px solid #ccc;
@@ -53,9 +56,28 @@
             font-size: 1rem;
             cursor: pointer;
             transition: background-color 0.2s;
+            margin-top: 10px;
         }
         button:hover {
             background-color: #0056b3;
+        }
+        .section-divider {
+            border-top: 1px solid #eee;
+            margin-top: 30px;
+            padding-top: 20px;
+        }
+        .stock-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }
+        .stock-table th, .stock-table td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: left;
+        }
+        .stock-table th {
+            background-color: #f2f2f2;
         }
     </style>
 </head>
@@ -66,6 +88,12 @@
             <div class="form-group">
                 <label for="data">Data da Venda</label>
                 <input type="date" id="data" name="data" required>
+            </div>
+            <div class="form-group">
+                <label for="venda_produto_id">Produto Vendido</label>
+                <select id="venda_produto_id" name="produto_id" required>
+                    <!-- Opções serão carregadas via JavaScript -->
+                </select>
             </div>
             <div class="form-group">
                 <label for="total">Venda Total (R$)</label>
@@ -98,5 +126,153 @@
             <button type="submit">Salvar Registro</button>
         </form>
     </div>
+
+    <div class="container section-divider">
+        <h2>Cadastrar Novo Produto</h2>
+        <form action="/produtos" method="post">
+            <div class="form-group">
+                <label for="produto_nome">Nome do Produto (Ex: Chopp Pilsen 50L)</label>
+                <input type="text" id="produto_nome" name="nome" required>
+            </div>
+            <div class="form-group">
+                <label for="preco_venda_litro">Preço de Venda por Litro (R$)</label>
+                <input type="number" id="preco_venda_litro" name="preco_venda_litro" step="0.01" required placeholder="Ex: 20.00">
+            </div>
+            <div class="form-group">
+                <label for="preco_venda_barril_fechado">Preço de Venda Barril Fechado (R$)</label>
+                <input type="number" id="preco_venda_barril_fechado" name="preco_venda_barril_fechado" step="0.01" required placeholder="Ex: 500.00">
+            </div>
+            <button type="submit">Cadastrar Produto</button>
+        </form>
+    </div>
+
+    <div class="container section-divider">
+        <h2>Registrar Entrada de Estoque</h2>
+        <form action="/estoque/entrada" method="post">
+            <div class="form-group">
+                <label for="entrada_produto_id">Produto</label>
+                <select id="entrada_produto_id" name="produto_id" required>
+                    <!-- Opções serão carregadas via JavaScript -->
+                </select>
+            </div>
+            <div class="form-group">
+                <label for="entrada_quantidade">Quantidade (barris)</label>
+                <input type="number" id="entrada_quantidade" name="quantidade" required min="1">
+            </div>
+            <div class="form-group">
+                <label for="entrada_custo_unitario">Custo Unitário por Barril (R$)</label>
+                <input type="number" id="entrada_custo_unitario" name="custo_unitario" step="0.01" required placeholder="Ex: 285.00">
+            </div>
+            <div class="form-group">
+                <label for="entrada_data_movimento">Data da Entrada</label>
+                <input type="date" id="entrada_data_movimento" name="data_movimento" required>
+            </div>
+            <button type="submit">Registrar Entrada</button>
+        </form>
+    </div>
+
+    <div class="container section-divider">
+        <h2>Registrar Saída Manual de Estoque</h2>
+        <form action="/estoque/saida_manual" method="post">
+            <div class="form-group">
+                <label for="saida_produto_id">Produto</label>
+                <select id="saida_produto_id" name="produto_id" required>
+                    <!-- Opções serão carregadas via JavaScript -->
+                </select>
+            </div>
+            <div class="form-group">
+                <label for="saida_quantidade">Quantidade (barris)</label>
+                <input type="number" id="saida_quantidade" name="quantidade" required min="1">
+            </div>
+            <div class="form-group">
+                <label for="saida_data_movimento">Data da Saída</label>
+                <input type="date" id="saida_data_movimento" name="data_movimento" required>
+            </div>
+            <button type="submit">Registrar Saída Manual</button>
+        </form>
+    </div>
+
+    <div class="container section-divider">
+        <h2>Estoque Atual</h2>
+        <div id="estoque_atual_display">
+            <p>Carregando estoque...</p>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // Função para carregar produtos nos selects
+            async function loadProductsIntoSelects() {
+                try {
+                    const response = await fetch('/produtos');
+                    const products = await response.json();
+
+                    const entradaSelect = document.getElementById('entrada_produto_id');
+                    const saidaSelect = document.getElementById('saida_produto_id');
+                    const vendaSelect = document.getElementById('venda_produto_id');
+                    
+                    entradaSelect.innerHTML = '<option value="">Selecione um produto</option>';
+                    saidaSelect.innerHTML = '<option value="">Selecione um produto</option>';
+                    vendaSelect.innerHTML = '<option value="">Selecione um produto</option>';
+
+                    products.forEach(product => {
+                        const optionEntrada = document.createElement('option');
+                        optionEntrada.value = product.id;
+                        optionEntrada.textContent = product.nome;
+                        entradaSelect.appendChild(optionEntrada);
+
+                        const optionSaida = document.createElement('option');
+                        optionSaida.value = product.id;
+                        optionSaida.textContent = product.nome;
+                        saidaSelect.appendChild(optionSaida);
+
+                        const optionVenda = document.createElement('option');
+                        optionVenda.value = product.id;
+                        optionVenda.textContent = product.nome;
+                        vendaSelect.appendChild(optionVenda);
+                    });
+                } catch (error) {
+                    console.error('Erro ao carregar produtos:', error);
+                    alert('Erro ao carregar produtos. Verifique o console para detalhes.');
+                }
+            }
+
+            // Função para carregar e exibir o estoque atual
+            async function loadCurrentStock() {
+                try {
+                    const response = await fetch('/estoque');
+                    const estoque = await response.json();
+                    const displayDiv = document.getElementById('estoque_atual_display');
+                    
+                    let html = '';
+                    if (Object.keys(estoque).length === 0) {
+                        html = '<p>Nenhum item em estoque ou produtos cadastrados.</p>';
+                    } else {
+                        html = '<table class="stock-table"><thead><tr><th>Produto</th><th>Quantidade (barris)</th><th>Volume (litros)</th></tr></thead><tbody>';
+                        for (const produtoNome in estoque) {
+                            const item = estoque[produtoNome];
+                            html += `<tr><td>${produtoNome}</td><td>${item.quantidade_barris}</td><td>${item.volume_litros_total}</td></tr>`;
+                        }
+                        html += '</tbody></table>';
+                    }
+                    displayDiv.innerHTML = html;
+
+                } catch (error) {
+                    console.error('Erro ao carregar estoque:', error);
+                    alert('Erro ao carregar estoque. Verifique o console para detalhes.');
+                }
+            }
+
+            // Carregar dados ao iniciar a página
+            loadProductsIntoSelects();
+            loadCurrentStock();
+
+            // Definir a data atual como padrão para os campos de data
+            const today = new Date().toISOString().split('T')[0];
+            document.getElementById('data').value = today;
+            document.getElementById('entrada_data_movimento').value = today;
+            document.getElementById('saida_data_movimento').value = today;
+        });
+    </script>
 </body>
 </html>
