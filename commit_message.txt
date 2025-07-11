@@ -1,0 +1,6 @@
+feat: Configure external database connection and update models
+
+- Refactor database connection to use DATABASE_URL environment variable.
+- Add Produto and MovimentoEstoque models for inventory management.
+- Update Venda model to include product_id for linking sales to products.
+- Remove local SQLite database file (trailer_exemplo.db).

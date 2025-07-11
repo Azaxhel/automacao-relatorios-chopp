@@ -3,7 +3,7 @@ from sqlmodel import create_engine, SQLModel
 
 # Lê a URL do banco de dados da variável de ambiente
 # Se não existir, usa o SQLite local como padrão
-DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///trailer.db")
+DATABASE_URL = os.getenv("DATABASE_URL")
 
 # O `connect_args` é específico do SQLite e não é necessário para o PostgreSQL
 kwargs = {"echo": True}
