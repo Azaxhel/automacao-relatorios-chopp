@@ -263,11 +263,21 @@ async def get_estoque_atual(username: str = Depends(get_current_username)):
                     select(MovimentoEstoque.quantidade)
                     .where(MovimentoEstoque.produto_id == produto.id, MovimentoEstoque.tipo_movimento == "saida_manual")
                 ).all()
+                saidas_venda = sess.exec(
+                    select(MovimentoEstoque.quantidade)
+                    .where(MovimentoEstoque.produto_id == produto.id, MovimentoEstoque.tipo_movimento == "saida_venda")
+                ).all()
+                saidas_venda_barril = sess.exec(
+                    select(MovimentoEstoque.quantidade)
+                    .where(MovimentoEstoque.produto_id == produto.id, MovimentoEstoque.tipo_movimento == "saida_venda_barril")
+                ).all()
                 
                 total_entradas = sum(q[0] for q in entradas if q is not None)
                 total_saidas_manuais = sum(q[0] for q in saidas_manuais if q is not None)
+                total_saidas_venda = sum(q[0] for q in saidas_venda if q is not None)
+                total_saidas_venda_barril = sum(q[0] for q in saidas_venda_barril if q is not None)
                 
-                estoque_atual = total_entradas - total_saidas_manuais
+                estoque_atual = total_entradas - total_saidas_manuais - total_saidas_venda - total_saidas_venda_barril
                 
                 estoque_info[produto.nome] = {
                     "quantidade_barris": estoque_atual,
