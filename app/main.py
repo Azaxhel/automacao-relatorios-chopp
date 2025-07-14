@@ -531,16 +531,7 @@ async def whatsapp_webhook(request: Request, body: str = Form(..., alias="Body")
         except (ValueError, IndexError):
             resp.message("Formato inválido. Use: melhores dias <mês> <ano>")
 
-    elif command == "ajuda":
-        text_reply = (
-            "Comandos disponíveis:\n"
-            "1. `relatorio <mês> <ano>`\n"
-            "2. `relatorio anual <ano>`\n"
-            "3. `comparar <m1> <a1> <m2> <a2>`\n"
-            "4. `melhores dias <mês> <ano>`\n"
-            "5. `ajuda`"
-        )
-        resp.message(text_reply)
+    elif command == "ajuda":        text_reply = (            "Comandos disponíveis:\n"            "1. `relatorio <mês> <ano>`\n"            "2. `relatorio anual <ano>`\n"            "3. `comparar <m1> <a1> <m2> <a2>`\n"            "4. `melhores dias <mês> <ano>`\n"            "5. `estoque`\n"            "6. `relatorio barril <mês> <ano>`\n"            "7. `ajuda`"        )        resp.message(text_reply)
 
     else:
         resp.message("Comando não reconhecido. Digite `ajuda` para ver as opções.")
