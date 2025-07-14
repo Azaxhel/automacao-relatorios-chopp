@@ -5,13 +5,14 @@ from fastapi import FastAPI, HTTPException, Query, Request, Form, Depends
 from fastapi.security import HTTPBasic, HTTPBasicCredentials
 from fastapi.responses import Response, HTMLResponse
 from sqlmodel import Session, select
-from app.database import engine, init_db # Importa o engine e a função init_db
-from app.models import Venda, Produto, MovimentoEstoque # Importa os modelos Venda, Produto e MovimentoEstoque
-from datetime import date, datetime # Importa datetime para MovimentoEstoque
-from typing import Optional # Importa Optional para tipos opcionais
+from app.database import get_session, init_engine, create_db_and_tables
+from app.models import Venda, Produto, MovimentoEstoque
+from datetime import date, datetime
+from typing import Optional
 from collections import Counter
 from twilio.twiml.messaging_response import MessagingResponse
 from twilio.request_validator import RequestValidator
+import dateparser
 
 # Carrega as variáveis de ambiente do arquivo .env
 load_dotenv()
@@ -20,11 +21,19 @@ load_dotenv()
 print(f"--> Usuário do .env: {os.getenv('FORM_USER')}")
 print(f"--> Senha do .env: {os.getenv('FORM_PASSWORD')}")
 
-app = FastAPI(title="API Trailer de Chopp")
+from contextlib import asynccontextmanager
 
-@app.on_event("startup")
-def on_startup():
-    init_db()
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    DATABASE_URL = os.getenv("DATABASE_URL")
+    if not DATABASE_URL:
+        raise RuntimeError("DATABASE_URL environment variable is not set.")
+    
+    init_engine(DATABASE_URL)
+    create_db_and_tables()
+    yield
+
+app = FastAPI(title="API Trailer de Chopp", lifespan=lifespan)
 
 # --- Configuração de Segurança ---
 
@@ -66,6 +75,7 @@ async def get_registration_form(username: str = Depends(get_current_username)):
 
 @app.post("/registrar_venda", response_class=HTMLResponse)
 async def register_venda(
+    db: Session = Depends(get_session),
     data: date = Form(...),
     produto_id: int = Form(...),
     tipo_venda: str = Form(...), # Novo campo para tipo de venda
@@ -82,91 +92,90 @@ async def register_venda(
     """
     Recebe os dados do formulário e salva no banco de dados (protegido por senha).
     """
-    with Session(engine) as sess:
-        produto = sess.exec(select(Produto).where(Produto.id == produto_id)).first()
-        if not produto:
-            raise HTTPException(status_code=404, detail="Produto não encontrado.")
+    produto = db.exec(select(Produto).where(Produto.id == produto_id)).first()
+    if not produto:
+        raise HTTPException(status_code=404, detail="Produto não encontrado.")
 
-        lucro = 0.0
-        barris_baixados = 0.0
-        venda_total_calculada = 0.0
+    lucro = 0.0
+    barris_baixados = 0.0
+    venda_total_calculada = 0.0
 
-        if tipo_venda == "feira":
-            if total is None: raise HTTPException(status_code=400, detail="Total da venda é obrigatório para vendas de feira.")
-            venda_total_calculada = total
-            lucro = total - (custo_func or 0.0) - (custo_copos or 0.0) - (custo_boleto or 0.0)
-            litros_vendidos = total / produto.preco_venda_litro
-            barris_baixados = litros_vendidos / produto.volume_litros
+    if tipo_venda == "feira":
+        if total is None: raise HTTPException(status_code=400, detail="Total da venda é obrigatório para vendas de feira.")
+        venda_total_calculada = total
+        lucro = total - (custo_func or 0.0) - (custo_copos or 0.0) - (custo_boleto or 0.0)
+        litros_vendidos = total / produto.preco_venda_litro
+        barris_baixados = litros_vendidos / produto.volume_litros
             
-            # Registra o movimento de saída por venda de feira
-            movimento_saida_venda = MovimentoEstoque(
-                produto_id=produto_id,
-                tipo_movimento="saida_venda",
-                quantidade=barris_baixados,
-                custo_unitario=None,
-                data_movimento=data
-            )
-            sess.add(movimento_saida_venda)
-
-        elif tipo_venda == "barril_festas":
-            if quantidade_barris_vendidos is None: raise HTTPException(status_code=400, detail="Quantidade de barris vendidos é obrigatória para vendas de barril_festas.")
-            
-            venda_total_calculada = quantidade_barris_vendidos * (produto.preco_venda_barril_fechado or 0.0)
-            barris_baixados = quantidade_barris_vendidos
-
-            # Calcular o custo médio do barril para o lucro
-            entradas_produto = sess.exec(
-                select(MovimentoEstoque.quantidade, MovimentoEstoque.custo_unitario)
-                .where(MovimentoEstoque.produto_id == produto.id, MovimentoEstoque.tipo_movimento == "entrada")
-            ).all()
-
-            total_custo_entradas = sum(e[0] * e[1] for e in entradas_produto if e[1] is not None)
-            total_quantidade_entradas = sum(e[0] for e in entradas_produto)
-            
-            custo_medio_barril = 0.0
-            if total_quantidade_entradas > 0:
-                custo_medio_barril = total_custo_entradas / total_quantidade_entradas
-            
-            custo_total_venda_barril = barris_baixados * custo_medio_barril
-            lucro = venda_total_calculada - custo_total_venda_barril
-
-            # Registra o movimento de saída por venda de barril_festas
-            movimento_saida_barril = MovimentoEstoque(
-                produto_id=produto_id,
-                tipo_movimento="saida_venda_barril",
-                quantidade=barris_baixados,
-                custo_unitario=custo_medio_barril, # Opcional: registrar o custo médio da baixa
-                data_movimento=data
-            )
-            sess.add(movimento_saida_barril)
-
-        elif tipo_venda == "boleto":
-            venda_total_calculada = 0.0
-            barris_baixados = 0.0
-            lucro = -(custo_boleto or 0.0) # Lucro é o negativo do custo do boleto
-
-        else:
-            raise HTTPException(status_code=400, detail="Tipo de venda inválido. Use 'feira', 'barril_festas' ou 'boleto'.")
-
-        nova_venda = Venda(
-            data=data,
+        # Registra o movimento de saída por venda de feira
+        movimento_saida_venda = MovimentoEstoque(
             produto_id=produto_id,
-            tipo_venda=tipo_venda,
-            total=venda_total_calculada,
-            cartao=cartao,
-            dinheiro=dinheiro,
-            pix=pix,
-            custo_func=custo_func,
-            custo_copos=custo_copos,
-            custo_boleto=custo_boleto,
-            lucro=lucro,
-            dia_semana=data.strftime('%A'),
-            quantidade_barris_vendidos=barris_baixados,
-            preco_venda_litro_registrado=produto.preco_venda_litro if tipo_venda == "feira" else None
+            tipo_movimento="saida_venda",
+            quantidade=barris_baixados,
+            custo_unitario=None,
+            data_movimento=data
         )
-        sess.add(nova_venda)
-        sess.commit()
-        sess.refresh(nova_venda)
+        db.add(movimento_saida_venda)
+
+    elif tipo_venda == "barril_festas":
+        if quantidade_barris_vendidos is None: raise HTTPException(status_code=400, detail="Quantidade de barris vendidos é obrigatória para vendas de barril_festas.")
+            
+        venda_total_calculada = quantidade_barris_vendidos * (produto.preco_venda_barril_fechado or 0.0)
+        barris_baixados = quantidade_barris_vendidos
+
+        # Calcular o custo médio do barril para o lucro
+        entradas_produto = db.exec(
+            select(MovimentoEstoque.quantidade, MovimentoEstoque.custo_unitario)
+            .where(MovimentoEstoque.produto_id == produto.id, MovimentoEstoque.tipo_movimento == "entrada")
+        ).all()
+
+        total_custo_entradas = sum(e[0] * e[1] for e in entradas_produto if e[1] is not None)
+        total_quantidade_entradas = sum(e[0] for e in entradas_produto)
+            
+        custo_medio_barril = 0.0
+        if total_quantidade_entradas > 0:
+            custo_medio_barril = total_custo_entradas / total_quantidade_entradas
+            
+        custo_total_venda_barril = barris_baixados * custo_medio_barril
+        lucro = venda_total_calculada - custo_total_venda_barril
+
+        # Registra o movimento de saída por venda de barril_festas
+        movimento_saida_barril = MovimentoEstoque(
+            produto_id=produto_id,
+            tipo_movimento="saida_venda_barril",
+            quantidade=barris_baixados,
+            custo_unitario=custo_medio_barril, # Opcional: registrar o custo médio da baixa
+            data_movimento=data
+        )
+        db.add(movimento_saida_barril)
+
+    elif tipo_venda == "boleto":
+        venda_total_calculada = 0.0
+        barris_baixados = 0.0
+        lucro = -(custo_boleto or 0.0) # Lucro é o negativo do custo do boleto
+
+    else:
+        raise HTTPException(status_code=400, detail="Tipo de venda inválido. Use 'feira', 'barril_festas' ou 'boleto'.")
+
+    nova_venda = Venda(
+        data=data,
+        produto_id=produto_id,
+        tipo_venda=tipo_venda,
+        total=venda_total_calculada,
+        cartao=cartao,
+        dinheiro=dinheiro,
+        pix=pix,
+        custo_func=custo_func,
+        custo_copos=custo_copos,
+        custo_boleto=custo_boleto,
+        lucro=lucro,
+        dia_semana=data.strftime('%A'),
+        quantidade_barris_vendidos=barris_baixados,
+        preco_venda_litro_registrado=produto.preco_venda_litro if tipo_venda == "feira" else None
+    )
+    db.add(nova_venda)
+    db.commit()
+    db.refresh(nova_venda)
 
     return HTMLResponse(content="<h1>Registro salvo com sucesso!</h1><p><a href='/'>Registrar outra venda</a></p>")
 
@@ -174,6 +183,7 @@ async def register_venda(
 
 @app.post("/produtos", response_class=HTMLResponse)
 async def create_produto(
+    db: Session = Depends(get_session),
     nome: str = Form(...),
     preco_venda_barril_fechado: float = Form(...),
     volume_litros: float = Form(...),
@@ -185,23 +195,22 @@ async def create_produto(
         preco_venda_barril_fechado=preco_venda_barril_fechado,
         volume_litros=volume_litros
     )
-    with Session(engine) as sess:
-        sess.add(produto)
-        sess.commit()
-        sess.refresh(produto)
+    db.add(produto)
+    db.commit()
+    db.refresh(produto)
     return HTMLResponse(content=f"<h1>Produto '{produto.nome}' cadastrado com sucesso!</h1><p><a href='/'>Voltar</a></p>")
 
 @app.get("/produtos", response_model=list[Produto])
-async def get_produtos(username: str = Depends(get_current_username)):
-    with Session(engine) as sess:
-        produtos = sess.exec(select(Produto)).all()
-        print(f"DEBUG: Produtos retornados para selectbox: {[p.nome for p in produtos]}") # DEBUG
+async def get_produtos(db: Session = Depends(get_session), username: str = Depends(get_current_username)):
+    produtos = db.exec(select(Produto)).all()
+    print(f"DEBUG: Produtos retornados para selectbox: {[p.nome for p in produtos]}") # DEBUG
     return produtos
 
 # --- Endpoints de Estoque ---
 
 @app.post("/estoque/entrada", response_class=HTMLResponse)
 async def register_entrada_estoque(
+    db: Session = Depends(get_session),
     produto_id: int = Form(...),
     quantidade: int = Form(...),
     custo_unitario: float = Form(...),
@@ -215,14 +224,14 @@ async def register_entrada_estoque(
         custo_unitario=custo_unitario,
         data_movimento=data_movimento
     )
-    with Session(engine) as sess:
-        sess.add(movimento)
-        sess.commit()
-        sess.refresh(movimento)
+    db.add(movimento)
+    db.commit()
+    db.refresh(movimento)
     return HTMLResponse(content=f"<h1>Entrada de {quantidade} barril(is) registrada com sucesso!</h1><p><a href='/'>Voltar</a></p>")
 
 @app.post("/estoque/saida_manual", response_class=HTMLResponse)
 async def register_saida_manual_estoque(
+    db: Session = Depends(get_session),
     produto_id: int = Form(...),
     quantidade: int = Form(...),
     data_movimento: date = Form(...),
@@ -235,70 +244,70 @@ async def register_saida_manual_estoque(
         custo_unitario=None, # Saída manual não tem custo unitário associado diretamente
         data_movimento=data_movimento
     )
-    with Session(engine) as sess:
-        sess.add(movimento)
-        sess.commit()
-        sess.refresh(movimento)
+    db.add(movimento)
+    db.commit()
+    db.refresh(movimento)
     return HTMLResponse(content=f"<h1>Saída manual de {quantidade} barril(is) registrada com sucesso!</h1><p><a href='/'>Voltar</a></p>")
 
 @app.get("/estoque", response_model=dict)
-async def get_estoque_atual(username: str = Depends(get_current_username)):
-    with Session(engine) as sess:
-        # Calcula o estoque atual por produto
-        # Soma as entradas e subtrai as saídas
-        # Isso é uma simplificação, um sistema de estoque real seria mais complexo
-        # e consideraria o volume em litros, não apenas barris.
-        # Por enquanto, vamos considerar a quantidade de barris.
+async def get_estoque_atual(
+    db: Session = Depends(get_session),
+    username: str = Depends(get_current_username)
+):
+    # Calcula o estoque atual por produto
+    # Soma as entradas e subtrai as saídas
+    # Isso é uma simplificação, um sistema de estoque real seria mais complexo
+    # e consideraria o volume em litros, não apenas barris.
+    # Por enquanto, vamos considerar a quantidade de barris.
 
-        produtos = sess.exec(select(Produto)).all()
-        estoque_info = {}
+    produtos = db.exec(select(Produto)).all()
+    estoque_info = {}
 
-        for produto in produtos:
-            try:
-                entradas = sess.exec(
-                    select(MovimentoEstoque.quantidade)
-                    .where(MovimentoEstoque.produto_id == produto.id, MovimentoEstoque.tipo_movimento == "entrada")
-                ).all()
-                saidas_manuais = sess.exec(
-                    select(MovimentoEstoque.quantidade)
-                    .where(MovimentoEstoque.produto_id == produto.id, MovimentoEstoque.tipo_movimento == "saida_manual")
-                ).all()
-                saidas_venda = sess.exec(
-                    select(MovimentoEstoque.quantidade)
-                    .where(MovimentoEstoque.produto_id == produto.id, MovimentoEstoque.tipo_movimento == "saida_venda")
-                ).all()
-                saidas_venda_barril = sess.exec(
-                    select(MovimentoEstoque.quantidade)
-                    .where(MovimentoEstoque.produto_id == produto.id, MovimentoEstoque.tipo_movimento == "saida_venda_barril")
-                ).all()
-                
-                total_entradas = sum(q for q in entradas if q is not None)
-                total_saidas_manuais = sum(q for q in saidas_manuais if q is not None)
-                total_saidas_venda = sum(q for q in saidas_venda if q is not None)
-                total_saidas_venda_barril = sum(q for q in saidas_venda_barril if q is not None)
-                
-                estoque_atual = total_entradas - total_saidas_manuais - total_saidas_venda - total_saidas_venda_barril
-                
-                estoque_info[produto.nome] = {
-                    "quantidade_barris": estoque_atual,
-                    "volume_litros_total": estoque_atual * (produto.volume_litros or 0.0),
-                    "preco_venda_litro": (produto.preco_venda_litro or 0.0),
-                    "preco_venda_barril_fechado": (produto.preco_venda_barril_fechado or 0.0)
-                }
-            except Exception as e:
-                print(f"Erro ao processar produto {produto.nome} (ID: {produto.id}) para estoque: {e}")
-                estoque_info[f"{produto.nome} (Erro)"] = {"quantidade_barris": "N/A", "volume_litros_total": "N/A", "error": str(e)}
-                continue
+    for produto in produtos:
+        try:
+            entradas = db.exec(
+                select(MovimentoEstoque.quantidade)
+                .where(MovimentoEstoque.produto_id == produto.id, MovimentoEstoque.tipo_movimento == "entrada")
+            ).all()
+            saidas_manuais = db.exec(
+                select(MovimentoEstoque.quantidade)
+                .where(MovimentoEstoque.produto_id == produto.id, MovimentoEstoque.tipo_movimento == "saida_manual")
+            ).all()
+            saidas_venda = db.exec(
+                select(MovimentoEstoque.quantidade)
+                .where(MovimentoEstoque.produto_id == produto.id, MovimentoEstoque.tipo_movimento == "saida_venda")
+            ).all()
+            saidas_venda_barril = db.exec(
+                select(MovimentoEstoque.quantidade)
+                .where(MovimentoEstoque.produto_id == produto.id, MovimentoEstoque.tipo_movimento == "saida_venda_barril")
+            ).all()
+            
+            total_entradas = sum(q for q in entradas if q is not None)
+            total_saidas_manuais = sum(q for q in saidas_manuais if q is not None)
+            total_saidas_venda = sum(q for q in saidas_venda if q is not None)
+            total_saidas_venda_barril = sum(q for q in saidas_venda_barril if q is not None)
+            
+            estoque_atual = total_entradas - total_saidas_manuais - total_saidas_venda - total_saidas_venda_barril
+            
+            estoque_info[produto.nome] = {
+                "quantidade_barris": estoque_atual,
+                "volume_litros_total": estoque_atual * (produto.volume_litros or 0.0),
+                "preco_venda_litro": (produto.preco_venda_litro or 0.0),
+                "preco_venda_barril_fechado": (produto.preco_venda_barril_fechado or 0.0)
+            }
+        except Exception as e:
+            print(f"Erro ao processar produto {produto.nome} (ID: {produto.id}) para estoque: {e}")
+            estoque_info[f"{produto.nome} (Erro)"] = {"quantidade_barris": "N/A", "volume_litros_total": "N/A", "error": str(e)}
+            continue
     return estoque_info
 
 # --- Lógica de Relatórios ---
 
-def get_report_data(inicio: date, fim: date):
+def get_report_data(inicio: date, fim: date, db: Session = Depends(get_session)):
     """
     Busca e calcula os dados de um relatório para um período específico.
     """
-    with Session(engine) as sess:
-        vendas = sess.exec(select(Venda).where(Venda.data >= inicio, Venda.data < fim)).all()
+    vendas = db.exec(select(Venda).where(Venda.data >= inicio, Venda.data < fim)).all()
     
     if not vendas:
         return None
@@ -323,15 +332,14 @@ def get_report_data(inicio: date, fim: date):
         "gasto_funcionarios": round(gasto_func, 2),
         "gasto_copos": round(gasto_copos, 2),
         "gasto_boleto": round(gasto_boleto, 2),
-        "dias_registrados": len(vendas),
+        "dias_registrados": len(set(v.data for v in vendas)),
     }
 
-def get_dias_movimento(inicio: date, fim: date):
+def get_dias_movimento(inicio: date, fim: date, db: Session = Depends(get_session)):
     """
     Busca e calcula os dias da semana mais lucrativos em um período.
     """
-    with Session(engine) as sess:
-        vendas = sess.exec(select(Venda.dia_semana, Venda.total).where(Venda.data >= inicio, Venda.data < fim)).all()
+    vendas = db.exec(select(Venda.dia_semana, Venda.total).where(Venda.data >= inicio, Venda.data < fim)).all()
     
     if not vendas:
         return None
@@ -346,7 +354,7 @@ def get_dias_movimento(inicio: date, fim: date):
 # --- Webhook do WhatsApp ---
 
 @app.post("/whatsapp/webhook")
-async def whatsapp_webhook(request: Request, body: str = Form(..., alias="Body")):
+async def whatsapp_webhook(request: Request, body: str = Form(..., alias="Body"), db: Session = Depends(get_session)):
     """
     Webhook para receber mensagens WhatsApp via Twilio.
     """
@@ -399,55 +407,59 @@ async def whatsapp_webhook(request: Request, body: str = Form(..., alias="Body")
 
     if command == "relatorio":
         try:
-            mes = int(parts[1])
-            ano = int(parts[2])
-            
-            # Busca relatório do mês atual
-            inicio_atual = date(ano, mes, 1)
-            fim_atual = date(ano + (mes == 12), (mes % 12) + 1, 1)
-            report = get_report_data(inicio_atual, fim_atual)
+            date_str = " ".join(parts[1:])
+            parsed_date = dateparser.parse(date_str, languages=['pt'])
+            if parsed_date:
+                mes, ano = parsed_date.month, parsed_date.year
+                
+                # Busca relatório do mês atual
+                inicio_atual = date(ano, mes, 1)
+                fim_atual = date(ano + (mes == 12), (mes % 12) + 1, 1)
+                report = get_report_data(inicio_atual, fim_atual, db)
 
-            if not report:
-                resp.message(f"Nenhum registro de vendas encontrado para {mes}/{ano}.")
-                return Response(content=str(resp), media_type="application/xml")
+                if not report:
+                    resp.message(f"Nenhum registro de vendas encontrado para {mes}/{ano}.")
+                    return Response(content=str(resp), media_type="application/xml")
 
-            # Lógica para tendência
-            mes_anterior = mes - 1 if mes > 1 else 12
-            ano_anterior = ano if mes > 1 else ano - 1
-            inicio_anterior = date(ano_anterior, mes_anterior, 1)
-            report_anterior = get_report_data(inicio_anterior, inicio_atual)
+                # Lógica para tendência
+                mes_anterior = mes - 1 if mes > 1 else 12
+                ano_anterior = ano if mes > 1 else ano - 1
+                inicio_anterior = date(ano_anterior, mes_anterior, 1)
+                report_anterior = get_report_data(inicio_anterior, inicio_atual, db)
 
-            tendencia_str = ""
-            if report_anterior:
-                rec_liq_atual = report['receita_liquida']
-                rec_liq_anterior = report_anterior['receita_liquida']
-                if rec_liq_anterior > 0:
-                    variacao = (rec_liq_atual / rec_liq_anterior) - 1
-                    tendencia_str = f"\n📈 Tendência: {variacao:.2%} em relação ao mês anterior."
+                tendencia_str = ""
+                if report_anterior:
+                    rec_liq_atual = report['receita_liquida']
+                    rec_liq_anterior = report_anterior['receita_liquida']
+                    if rec_liq_anterior > 0:
+                        variacao = (rec_liq_atual / rec_liq_anterior) - 1
+                        tendencia_str = f"\n📈 Tendência: {variacao:.2%} em relação ao mês anterior."
+                    else:
+                        tendencia_str = "\n📈 Tendência: N/A (mês anterior sem receita)."
                 else:
-                    tendencia_str = "\n📈 Tendência: N/A (mês anterior sem receita)."
+                    tendencia_str = "\n📈 Tendência: N/A (sem dados do mês anterior)."
+
+                gastos_totais = report['gasto_funcionarios'] + report['gasto_copos'] + report['gasto_boleto']
+                text_reply = (
+                    f"🧾 Relatório {mes}/{ano}\n"
+                    f"--------------------------\n"
+                    f"Receita bruta: R$ {report['receita_bruta']:.2f}\n"
+                    f"Receita líquida: R$ {report['receita_liquida']:.2f}\n"
+                    f"Média por dia: R$ {report['media_vendas']:.2f}\n"
+                    f"--------------------------\n"
+                    f"Gastos Detalhados:\n"
+                    f"  - Funcionários: R$ {report['gasto_funcionarios']:.2f}\n"
+                    f"  - Copos: R$ {report['gasto_copos']:.2f}\n"
+                    f"  - Boleto: R$ {report['gasto_boleto']:.2f}\n"
+                    f"Total de Gastos: R$ {gastos_totais:.2f}\n"
+                    f"--------------------------\n"
+                    f"Dias registrados: {report['dias_registrados']}"
+                    f"{tendencia_str}"
+                )
+                resp.message(text_reply)
+
             else:
-                tendencia_str = "\n📈 Tendência: N/A (sem dados do mês anterior)."
-
-            gastos_totais = report['gasto_funcionarios'] + report['gasto_copos'] + report['gasto_boleto']
-            text_reply = (
-                f"🧾 Relatório {mes}/{ano}\n"
-                f"--------------------------\n"
-                f"Receita bruta: R$ {report['receita_bruta']:.2f}\n"
-                f"Receita líquida: R$ {report['receita_liquida']:.2f}\n"
-                f"Média por dia: R$ {report['media_vendas']:.2f}\n"
-                f"--------------------------\n"
-                f"Gastos Detalhados:\n"
-                f"  - Funcionários: R$ {report['gasto_funcionarios']:.2f}\n"
-                f"  - Copos: R$ {report['gasto_copos']:.2f}\n"
-                f"  - Boleto: R$ {report['gasto_boleto']:.2f}\n"
-                f"Total de Gastos: R$ {gastos_totais:.2f}\n"
-                f"--------------------------\n"
-                f"Dias registrados: {report['dias_registrados']}"
-                f"{tendencia_str}"
-            )
-            resp.message(text_reply)
-
+                resp.message("Formato inválido. Use: relatorio <mês> <ano>")
         except (ValueError, IndexError):
             resp.message("Formato inválido. Use: relatorio <mês> <ano>")
         except HTTPException as e:
@@ -458,7 +470,7 @@ async def whatsapp_webhook(request: Request, body: str = Form(..., alias="Body")
             ano = int(parts[2])
             inicio = date(ano, 1, 1)
             fim = date(ano + 1, 1, 1)
-            report = get_report_data(inicio, fim)
+            report = get_report_data(inicio, fim, db)
 
             if not report:
                 raise HTTPException(status_code=404, detail=f"Nenhum registro para o ano {ano}")
@@ -484,11 +496,11 @@ async def whatsapp_webhook(request: Request, body: str = Form(..., alias="Body")
 
             inicio1 = date(ano1, mes1, 1)
             fim1 = date(ano1 + (mes1 == 12), (mes1 % 12) + 1, 1)
-            report1 = get_report_data(inicio1, fim1)
+            report1 = get_report_data(inicio1, fim1, db)
 
             inicio2 = date(ano2, mes2, 1)
             fim2 = date(ano2 + (mes2 == 12), (mes2 % 12) + 1, 1)
-            report2 = get_report_data(inicio2, fim2)
+            report2 = get_report_data(inicio2, fim2, db)
 
             if not report1:
                 resp.message(f"Não há dados para o primeiro período ({mes1}/{ano1}) para comparar.")
@@ -515,7 +527,7 @@ async def whatsapp_webhook(request: Request, body: str = Form(..., alias="Body")
             mes, ano = int(parts[2]), int(parts[3])
             inicio = date(ano, mes, 1)
             fim = date(ano + (mes == 12), (mes % 12) + 1, 1)
-            ranking = get_dias_movimento(inicio, fim)
+            ranking = get_dias_movimento(inicio, fim, db)
 
             if not ranking:
                 resp.message(f"Não há dados de vendas para {mes}/{ano}.")

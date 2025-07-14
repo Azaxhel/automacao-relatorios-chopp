@@ -7,3 +7,5 @@ twilio
 psycopg2-binary
 python-multipart
 openpyxl
+pytest
+dateparser

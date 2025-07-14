@@ -82,6 +82,8 @@
     </style>
 </head>
 <body>
+    <div id="message-container" style="display: none; padding: 10px; margin-bottom: 20px; background-color: #d4edda; color: #155724; border: 1px solid #c3e6cb; border-radius: 5px;"></div>
+
     <div class="container">
         <h1>Registrar Nova Venda</h1>
         <form action="/registrar_venda" method="post">
@@ -346,6 +348,20 @@
 
             tipoVendaSelect.addEventListener('change', toggleCamposVenda);
             toggleCamposVenda(); // Chama na carga inicial da página
+
+            // Lógica para exibir mensagens de sucesso
+            const urlParams = new URLSearchParams(window.location.search);
+            const message = urlParams.get('message');
+            const messageContainer = document.getElementById('message-container');
+
+            if (message) {
+                messageContainer.textContent = decodeURIComponent(message);
+                messageContainer.style.display = 'block';
+                // Remove a mensagem após 5 segundos
+                setTimeout(() => {
+                    messageContainer.style.display = 'none';
+                }, 5000);
+            }
         }); // Fecha o DOMContentLoaded
     </script>
 </body>

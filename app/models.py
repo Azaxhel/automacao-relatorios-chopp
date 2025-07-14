@@ -39,6 +39,7 @@ class Venda(SQLModel, table=True):
     observacoes: Optional[str] = None
     quantidade_barris_vendidos: Optional[float] = None # Para vendas de barril fechado
     preco_venda_litro_registrado: Optional[float] = None # Preço por litro no momento da venda
+    custo_total_venda: Optional[float] = None # Custo total dos produtos vendidos (ex: custo do barril)
 
     produto_id: Optional[int] = Field(default=None, foreign_key="produto.id")
     produto: Optional[Produto] = Relationship(back_populates="vendas")

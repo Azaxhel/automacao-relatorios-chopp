@@ -1,17 +1,34 @@
+from sqlmodel import create_engine, SQLModel, Session
 import os
-from sqlmodel import create_engine, SQLModel
 
-# Lê a URL do banco de dados da variável de ambiente
-# Se não existir, usa o SQLite local como padrão
-DATABASE_URL = os.getenv("DATABASE_URL")
+# A variável do engine agora é privada e gerenciada pelas funções.
+_engine = None
 
-# O `connect_args` é específico do SQLite e não é necessário para o PostgreSQL
-kwargs = {"echo": True}
-if DATABASE_URL.startswith("sqlite"):
-    kwargs["connect_args"] = {"check_same_thread": False}
+def get_engine():
+    """Retorna a instância do engine. Lança um erro se não for inicializado."""
+    if _engine is None:
+        raise RuntimeError("Database engine has not been initialized. Call init_engine() first.")
+    return _engine
 
-engine = create_engine(DATABASE_URL, **kwargs)
+def init_engine(database_url: str):
+    """Inicializa o engine do banco de dados com a URL fornecida."""
+    global _engine
+    if _engine is not None:
+        return
 
-def init_db():
+    kwargs = {"echo": False} # Desligando o echo para testes mais limpos
+    if database_url.startswith("sqlite"):
+        kwargs["connect_args"] = {"check_same_thread": False}
+
+    _engine = create_engine(database_url, **kwargs)
+
+def get_session() -> Session:
+    """Gera uma nova sessão do banco de dados a partir do engine inicializado."""
+    engine = get_engine()
+    with Session(engine) as session:
+        yield session
+
+def create_db_and_tables():
+    """Cria todas as tabelas definidas nos modelos SQLModel."""
+    engine = get_engine()
     SQLModel.metadata.create_all(engine)
-    
