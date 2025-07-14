@@ -51,6 +51,12 @@ Este projeto é um bot em Python + FastAPI que processa dados de vendas e respon
     uvicorn app.main:app --reload
     ```
 
+## Testes
+Os testes automatizados garantem a estabilidade e a correção da lógica de negócios. Para executá-los:
+```bash
+pytest
+```
+
 ## Deploy (Produção)
 O deploy é feito na plataforma Railway, garantindo que a aplicação esteja online 24/7. O banco de dados PostgreSQL também é hospedado no Railway.
 

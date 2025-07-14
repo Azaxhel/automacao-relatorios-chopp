@@ -301,55 +301,36 @@ async def get_estoque_atual(
             continue
     return estoque_info
 
+from app.logic import calcular_relatorio_geral, calcular_ranking_dias, calcular_lucro_por_produto
+
 # --- Lógica de Relatórios ---
 
-def get_report_data(inicio: date, fim: date, db: Session = Depends(get_session)):
+def get_report_data(inicio: date, fim: date, db: Session, tipo_venda: Optional[str] = None):
     """
-    Busca e calcula os dados de um relatório para um período específico.
+    Busca os dados de vendas e chama a função de cálculo para gerar o relatório.
+    """
+    query = select(Venda).where(Venda.data >= inicio, Venda.data < fim)
+    if tipo_venda:
+        query = query.where(Venda.tipo_venda == tipo_venda)
+    
+    vendas = db.exec(query).all()
+    
+    return calcular_relatorio_geral(vendas)
+
+def get_dias_movimento(inicio: date, fim: date, db: Session):
+    """
+    Busca os dados de vendas e chama a função de cálculo para o ranking de dias.
     """
     vendas = db.exec(select(Venda).where(Venda.data >= inicio, Venda.data < fim)).all()
-    
-    if not vendas:
-        return None
+    return calcular_ranking_dias(vendas)
 
-    # Garante que todos os valores são float, tratando None como 0.0
-    receita_bruta = sum(float(v.total or 0.0) for v in vendas)
-    gasto_func = sum(float(v.custo_func or 0.0) for v in vendas)
-    gasto_copos = sum(float(v.custo_copos or 0.0) for v in vendas)
-    gasto_boleto = sum(float(v.custo_boleto or 0.0) for v in vendas)
-    
-    gasto_total = gasto_func + gasto_copos + gasto_boleto
-    receita_liquida = receita_bruta - gasto_total
-    
-    media_vendas = 0.0
-    if len(vendas) > 0:
-        media_vendas = receita_bruta / len(vendas)
-
-    return {
-        "receita_bruta": round(receita_bruta, 2),
-        "receita_liquida": round(receita_liquida, 2),
-        "media_vendas": round(media_vendas, 2),
-        "gasto_funcionarios": round(gasto_func, 2),
-        "gasto_copos": round(gasto_copos, 2),
-        "gasto_boleto": round(gasto_boleto, 2),
-        "dias_registrados": len(set(v.data for v in vendas)),
-    }
-
-def get_dias_movimento(inicio: date, fim: date, db: Session = Depends(get_session)):
+def get_lucro_por_produto(inicio: date, fim: date, db: Session):
     """
-    Busca e calcula os dias da semana mais lucrativos em um período.
+    Busca dados e chama a função de cálculo para o lucro por produto.
     """
-    vendas = db.exec(select(Venda.dia_semana, Venda.total).where(Venda.data >= inicio, Venda.data < fim)).all()
-    
-    if not vendas:
-        return None
-
-    faturamento_por_dia = Counter()
-    for dia_semana, total in vendas:
-        if dia_semana:
-            faturamento_por_dia[dia_semana] += total
-    
-    return faturamento_por_dia.most_common()
+    vendas = db.exec(select(Venda).where(Venda.data >= inicio, Venda.data < fim, Venda.tipo_venda != "boleto")).all()
+    produtos = db.exec(select(Produto)).all()
+    return calcular_lucro_por_produto(vendas, produtos)
 
 # --- Webhook do WhatsApp ---
 
