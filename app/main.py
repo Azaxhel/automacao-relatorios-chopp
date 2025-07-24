@@ -369,13 +369,16 @@ async def whatsapp_webhook(request: Request, body: str = Form(..., alias="Body")
         # Se a validação falhar, retorna um erro 403 Forbidden
         raise HTTPException(status_code=403, detail="Assinatura Twilio inválida.")
 
+    print(f"DEBUG: Entrou no whatsapp_webhook.")
     text = body.strip().lower().replace('relatório', 'relatorio')
     parts = text.split()
+    print(f"DEBUG: Mensagem processada: text='{text}', parts={parts})")
     
     resp = MessagingResponse()
 
     # Lógica de reconhecimento de comandos
     if not parts:
+        print(f"DEBUG: Mensagem vazia ou não reconhecida.")
         resp.message("Comando não reconhecido. Digite `ajuda` para ver as opções.")
         return Response(content=str(resp), media_type="application/xml")
 
@@ -386,8 +389,10 @@ async def whatsapp_webhook(request: Request, body: str = Form(..., alias="Body")
         potential_command = f"{parts[0]} {parts[1]}"
         if potential_command in ["relatorio anual", "melhores dias", "relatorio barril"]:
             command = potential_command
+    print(f"DEBUG: Comando identificado: '{command}'")
 
     if command == "relatorio":
+        print(f"DEBUG: Executando comando 'relatorio'.")
         try:
             date_str = " ".join(parts[1:])
             parsed_date = dateparser.parse(date_str, languages=['pt'])
@@ -442,12 +447,15 @@ async def whatsapp_webhook(request: Request, body: str = Form(..., alias="Body")
 
             else:
                 resp.message("Formato inválido. Use: relatorio <mês> <ano>")
-        except (ValueError, IndexError):
+        except (ValueError, IndexError) as e:
+            print(f"DEBUG: Erro no comando 'relatorio': {e}")
             resp.message("Formato inválido. Use: relatorio <mês> <ano>")
         except HTTPException as e:
+            print(f"DEBUG: HTTPException no comando 'relatorio': {e.detail}")
             resp.message(e.detail)
 
     elif command == "relatorio anual":
+        print(f"DEBUG: Executando comando 'relatorio anual'.")
         try:
             # O comando é "relatorio anual", então o ano está em parts[2]
             ano = int(parts[2])
@@ -461,18 +469,22 @@ async def whatsapp_webhook(request: Request, body: str = Form(..., alias="Body")
             text_reply = (
                 f"🗓️ Relatório Anual {ano}\n"
                 f"--------------------------\n"
+
                 f"Receita bruta: R$ {report['receita_bruta']:.2f}\n"
                 f"Receita líquida: R$ {report['receita_liquida']:.2f}\n"
                 f"Média por dia: R$ {report['media_vendas']:.2f}\n"
                 f"Dias registrados: {report['dias_registrados']}"
             )
             resp.message(text_reply)
-        except (ValueError, IndexError):
+        except (ValueError, IndexError) as e:
+            print(f"DEBUG: Erro no comando 'relatorio anual': {e}")
             resp.message("Formato inválido. Use: relatorio anual <ano>")
         except HTTPException as e:
+            print(f"DEBUG: HTTPException no comando 'relatorio anual': {e.detail}")
             resp.message(e.detail)
 
     elif command == "comparar":
+        print(f"DEBUG: Executando comando 'comparar'.")
         try:
             mes1, ano1 = int(parts[1]), int(parts[2])
             mes2, ano2 = int(parts[3]), int(parts[4])
@@ -502,10 +514,12 @@ async def whatsapp_webhook(request: Request, body: str = Form(..., alias="Body")
                     f"  - Variação: {variacao}"
                 )
                 resp.message(text_reply)
-        except (ValueError, IndexError):
+        except (ValueError, IndexError) as e:
+            print(f"DEBUG: Erro no comando 'comparar': {e}")
             resp.message("Formato inválido. Use: comparar <m1> <a1> <m2> <a2>")
 
     elif command == "melhores dias":
+        print(f"DEBUG: Executando comando 'melhores dias'.")
         try:
             # O comando é "melhores dias", então os args começam em parts[2]
             mes, ano = int(parts[2]), int(parts[3])
@@ -526,10 +540,12 @@ async def whatsapp_webhook(request: Request, body: str = Form(..., alias="Body")
                     dia_traduzido = traducao_dias.get(dia.capitalize(), dia)
                     reply_lines.append(f"{i+1}. {dia_traduzido}: R$ {total:.2f}")
                 resp.message("\n".join(reply_lines))
-        except (ValueError, IndexError):
+        except (ValueError, IndexError) as e:
+            print(f"DEBUG: Erro no comando 'melhores dias': {e}")
             resp.message("Formato inválido. Use: melhores dias <mês> <ano>")
 
     elif command == "estoque":
+        print(f"DEBUG: Executando comando 'estoque'.")
         try:
             estoque_info = _get_estoque_logic(db)
             if not estoque_info:
@@ -543,9 +559,11 @@ async def whatsapp_webhook(request: Request, body: str = Form(..., alias="Body")
                         reply_lines.append(f"- {produto_nome}: {info.get('quantidade_barris', 0):.2f} barris ({info.get('volume_litros_total', 0):.2f} L)")
                 resp.message("\n".join(reply_lines))
         except Exception as e:
+            print(f"DEBUG: Erro no comando 'estoque': {e}")
             resp.message(f"Erro ao consultar estoque: {e}")
 
     elif command == "relatorio barril":
+        print(f"DEBUG: Executando comando 'relatorio barril'.")
         try:
             # O comando é "relatorio barril", então os args começam em parts[2]
             date_str = " ".join(parts[2:])
@@ -574,12 +592,15 @@ async def whatsapp_webhook(request: Request, body: str = Form(..., alias="Body")
                     resp.message("\n".join(reply_lines))
             else:
                 resp.message("Formato inválido. Use: relatorio barril <mês> <ano>")
-        except (ValueError, IndexError):
+        except (ValueError, IndexError) as e:
+            print(f"DEBUG: Erro no comando 'relatorio barril': {e}")
             resp.message("Formato inválido. Use: relatorio barril <mês> <ano>")
         except Exception as e:
+            print(f"DEBUG: Erro inesperado no comando 'relatorio barril': {e}")
             resp.message(f"Erro ao consultar relatório de barris: {e}")
 
     elif command == "ajuda":
+        print(f"DEBUG: Executando comando 'ajuda'.")
         text_reply = (
             "Comandos disponíveis:\n"
             "1. `relatorio <mês> <ano>`\n"
@@ -593,6 +614,7 @@ async def whatsapp_webhook(request: Request, body: str = Form(..., alias="Body")
         resp.message(text_reply)
 
     else:
+        print(f"DEBUG: Comando '{command}' não reconhecido.")
         resp.message("Comando não reconhecido. Digite `ajuda` para ver as opções.")
 
     return Response(content=str(resp), media_type="application/xml")
