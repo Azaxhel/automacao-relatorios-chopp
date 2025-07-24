@@ -131,7 +131,7 @@ Durante a implementação, vários erros foram encontrados e corrigidos sequenci
 *   **`IntegrityError: NOT NULL constraint failed: venda.lucro` (em `tests/test_main.py`):** O campo `lucro` não estava sendo fornecido nos dados de teste. **Solução:** Adicionado `lucro=...` à criação das instâncias de `Venda` nos testes.
 *   **`AssertionError` (em `tests/test_main.py`):** O teste `test_get_report_data_calculo_correto` esperava 2 dias registrados, mas a função `get_report_data` estava retornando 3 (o número total de vendas). **Solução:** Modificado `get_report_data` em `app/main.py` para contar dias únicos (`len(set(v.data for v in vendas))`).
 
-**Resultado Final:** Todos os testes estão passando com sucesso, e o projeto está em um estado muito mais estável e testável.
+**Resultado Final:** Todos os testes estão passando com sucesso, e o projeto está em um estado muito mais stable e testável.
 
 ---
 
@@ -164,3 +164,15 @@ Para contornar o problema e ainda assim garantir a qualidade do código, foi ado
 - Foram executados 6 testes, todos passaram em 0.12s.
 - Os testes unitários em `tests/test_logic.py` e os testes de integração em `tests/test_main.py` estão funcionando conforme o esperado.
 - A refatoração do ambiente de teste e a separação da lógica de negócios em `app/logic.py` foram cruciais para a estabilidade e testabilidade do projeto.
+
+## Problema Pendente (14 de julho de 2025)
+
+**Problema:** Os comandos `estoque` e `relatorio barril` aparecem na mensagem de ajuda do bot, mas não são reconhecidos. Isso ocorre porque a lógica para processá-los ainda não foi implementada no `whatsapp_webhook` em `app/main.py`.
+
+**Próximo passo:** Implementar a lógica para os comandos `estoque` e `relatorio barril` no `app/main.py`.
+
+## Problema Recorrente (14 de julho de 2025)
+
+**Problema:** Após a tentativa de adicionar a lógica para os comandos `estoque` e `relatorio barril` no `app/main.py`, a indentação do código foi comprometida, e a alteração foi revertida. O problema original de reconhecimento dos comandos persiste.
+
+**Próximo passo:** Implementar a lógica para os comandos `estoque` e `relatorio barril` no `app/main.py`, com atenção redobrada à indentação e formatação do código. 

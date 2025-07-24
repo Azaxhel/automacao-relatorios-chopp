@@ -374,17 +374,13 @@ async def whatsapp_webhook(request: Request, body: str = Form(..., alias="Body")
         resp.message("Comando não reconhecido. Digite `ajuda` para ver as opções.")
         return Response(content=str(resp), media_type="application/xml")
 
-    # Tenta comandos de duas palavras primeiro
-    if len(parts) >= 2:
-        command_two_words = " ".join(parts[:2])
-        if command_two_words == "relatorio anual":
-            command = command_two_words
-        elif command_two_words == "melhores dias":
-            command = command_two_words
-        else:
-            command = parts[0] # Se não for comando de duas palavras, pega a primeira palavra
-    else:
-        command = parts[0] # Se for apenas uma palavra, pega ela mesma
+    # Lógica de reconhecimento de comandos
+    command = parts[0]
+    # Verifica se o comando é composto (duas palavras) e se é um dos comandos conhecidos
+    if len(parts) > 1:
+        potential_command = f"{parts[0]} {parts[1]}"
+        if potential_command in ["relatorio anual", "melhores dias", "relatorio barril"]:
+            command = potential_command
 
     if command == "relatorio":
         try:
@@ -448,6 +444,7 @@ async def whatsapp_webhook(request: Request, body: str = Form(..., alias="Body")
 
     elif command == "relatorio anual":
         try:
+            # O comando é "relatorio anual", então o ano está em parts[2]
             ano = int(parts[2])
             inicio = date(ano, 1, 1)
             fim = date(ano + 1, 1, 1)
@@ -505,6 +502,7 @@ async def whatsapp_webhook(request: Request, body: str = Form(..., alias="Body")
 
     elif command == "melhores dias":
         try:
+            # O comando é "melhores dias", então os args começam em parts[2]
             mes, ano = int(parts[2]), int(parts[3])
             inicio = date(ano, mes, 1)
             fim = date(ano + (mes == 12), (mes % 12) + 1, 1)
@@ -513,15 +511,10 @@ async def whatsapp_webhook(request: Request, body: str = Form(..., alias="Body")
             if not ranking:
                 resp.message(f"Não há dados de vendas para {mes}/{ano}.")
             else:
-                # Dicionário para traduzir os dias da semana
                 traducao_dias = {
-                    'Monday': 'Segunda-feira',
-                    'Tuesday': 'Terça-feira',
-                    'Wednesday': 'Quarta-feira',
-                    'Thursday': 'Quinta-feira',
-                    'Friday': 'Sexta-feira',
-                    'Saturday': 'Sábado',
-                    'Sunday': 'Domingo'
+                    'Monday': 'Segunda-feira', 'Tuesday': 'Terça-feira',
+                    'Wednesday': 'Quarta-feira', 'Thursday': 'Quinta-feira',
+                    'Friday': 'Sexta-feira', 'Saturday': 'Sábado', 'Sunday': 'Domingo'
                 }
                 reply_lines = [f"🏆 Melhores Dias de {mes}/{ano} 🏆"]
                 for i, (dia, total) in enumerate(ranking):
@@ -530,6 +523,57 @@ async def whatsapp_webhook(request: Request, body: str = Form(..., alias="Body")
                 resp.message("\n".join(reply_lines))
         except (ValueError, IndexError):
             resp.message("Formato inválido. Use: melhores dias <mês> <ano>")
+
+    elif command == "estoque":
+        try:
+            # A função get_estoque_atual foi alterada para ser síncrona
+            estoque_info = get_estoque_atual(db)
+            if not estoque_info:
+                resp.message("Nenhum produto encontrado ou erro ao carregar estoque.")
+            else:
+                reply_lines = ["📦 Estoque Atual 📦"]
+                for produto_nome, info in estoque_info.items():
+                    if "error" in info:
+                        reply_lines.append(f"- {produto_nome}: Erro ao carregar ({info['error']})")
+                    else:
+                        reply_lines.append(f"- {produto_nome}: {info.get('quantidade_barris', 0):.2f} barris ({info.get('volume_litros_total', 0):.2f} L)")
+                resp.message("\n".join(reply_lines))
+        except Exception as e:
+            resp.message(f"Erro ao consultar estoque: {e}")
+
+    elif command == "relatorio barril":
+        try:
+            # O comando é "relatorio barril", então os args começam em parts[2]
+            date_str = " ".join(parts[2:])
+            parsed_date = dateparser.parse(date_str, languages=['pt'])
+            if parsed_date:
+                mes, ano = parsed_date.month, parsed_date.year
+                inicio = date(ano, mes, 1)
+                fim = date(ano + (mes == 12), (mes % 12) + 1, 1)
+                
+                lucro_por_produto = get_lucro_por_produto(inicio, fim, db)
+
+                if not lucro_por_produto:
+                    resp.message(f"Nenhum registro de vendas de barril encontrado para {mes}/{ano}.")
+                else:
+                    reply_lines = [f"📊 Relatório de Barris {mes}/{ano} 📊"]
+                    total_lucro_barril = 0.0
+                    total_barris_vendidos = 0.0
+                    for produto_nome, dados in lucro_por_produto.items():
+                        reply_lines.append(f"- {produto_nome}:")
+                        reply_lines.append(f"  Lucro: R$ {dados['lucro']:.2f}")
+                        reply_lines.append(f"  Barris Vendidos: {dados['quantidade_barris_vendidos']:.2f}")
+                        total_lucro_barril += dados['lucro']
+                        total_barris_vendidos += dados['quantidade_barris_vendidos']
+                    reply_lines.append(f"\nTotal Lucro Barris: R$ {total_lucro_barril:.2f}")
+                    reply_lines.append(f"Total Barris Vendidos: {total_barris_vendidos:.2f}")
+                    resp.message("\n".join(reply_lines))
+            else:
+                resp.message("Formato inválido. Use: relatorio barril <mês> <ano>")
+        except (ValueError, IndexError):
+            resp.message("Formato inválido. Use: relatorio barril <mês> <ano>")
+        except Exception as e:
+            resp.message(f"Erro ao consultar relatório de barris: {e}")
 
     elif command == "ajuda":
         text_reply = (
