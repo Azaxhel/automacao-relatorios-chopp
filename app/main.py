@@ -171,7 +171,8 @@ async def register_venda(
         lucro=lucro,
         dia_semana=data.strftime('%A'),
         quantidade_barris_vendidos=barris_baixados,
-        preco_venda_litro_registrado=produto.preco_venda_litro if tipo_venda == "feira" else None
+        preco_venda_litro_registrado=produto.preco_venda_litro if tipo_venda == "feira" else None,
+        custo_total_venda=custo_total_venda_barril if tipo_venda == "barril_festas" else None
     )
     db.add(nova_venda)
     db.commit()
@@ -249,17 +250,11 @@ async def register_saida_manual_estoque(
     db.refresh(movimento)
     return HTMLResponse(content=f"<h1>Saída manual de {quantidade} barril(is) registrada com sucesso!</h1><p><a href='/'>Voltar</a></p>")
 
-@app.get("/estoque", response_model=dict)
-async def get_estoque_atual(
-    db: Session = Depends(get_session),
-    username: str = Depends(get_current_username)
-):
-    # Calcula o estoque atual por produto
-    # Soma as entradas e subtrai as saídas
-    # Isso é uma simplificação, um sistema de estoque real seria mais complexo
-    # e consideraria o volume em litros, não apenas barris.
-    # Por enquanto, vamos considerar a quantidade de barris.
-
+def _get_estoque_logic(db: Session) -> dict:
+    """
+    Lógica de negócio para calcular o estoque atual.
+    Esta função é síncrona e pode ser chamada por qualquer parte do app.
+    """
     produtos = db.exec(select(Produto)).all()
     estoque_info = {}
 
@@ -300,6 +295,16 @@ async def get_estoque_atual(
             estoque_info[f"{produto.nome} (Erro)"] = {"quantidade_barris": "N/A", "volume_litros_total": "N/A", "error": str(e)}
             continue
     return estoque_info
+
+@app.get("/estoque", response_model=dict)
+async def get_estoque_atual(
+    db: Session = Depends(get_session),
+    username: str = Depends(get_current_username)
+):
+    """
+    Endpoint para servir o estoque atual para o frontend.
+    """
+    return _get_estoque_logic(db)
 
 from app.logic import calcular_relatorio_geral, calcular_ranking_dias, calcular_lucro_por_produto
 
@@ -526,8 +531,7 @@ async def whatsapp_webhook(request: Request, body: str = Form(..., alias="Body")
 
     elif command == "estoque":
         try:
-            # A função get_estoque_atual foi alterada para ser síncrona
-            estoque_info = get_estoque_atual(db)
+            estoque_info = _get_estoque_logic(db)
             if not estoque_info:
                 resp.message("Nenhum produto encontrado ou erro ao carregar estoque.")
             else:

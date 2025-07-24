@@ -47,8 +47,10 @@
             box-sizing: border-box;
         }
         button {
-            width: 100%;
-            padding: 0.75rem;
+            display: block; /* Garante que o botão fique em sua própria linha */
+            width: fit-content; /* Ajusta a largura ao conteúdo */
+            margin: 20px auto 0 auto; /* Centraliza o botão horizontalmente com margem superior */
+            padding: 0.75rem 1.5rem; /* Adiciona um preenchimento horizontal para melhor aparência */
             background-color: #007bff;
             color: white;
             border: none;
@@ -56,7 +58,6 @@
             font-size: 1rem;
             cursor: pointer;
             transition: background-color 0.2s;
-            margin-top: 10px;
         }
         button:hover {
             background-color: #0056b3;
